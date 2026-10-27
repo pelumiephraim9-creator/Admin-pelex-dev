@@ -1,46 +1,51 @@
-import Fastify from "fastify";
-import cors from "@fastify/cors";
-import "dotenv/config";
-
-const app = Fastify({
-  logger: true,
-});
-
-async function startServer() {
-  await app.register(cors, {
-    origin: process.env.FRONTEND_URL || true,
+if (!message) {
+  return reply.code(400).send({
+    error: "Please provide a message.",
   });
-
-  // Basic health check
-  app.get("/", async () => {
-    return {
-      name: "Pelex AI Backend",
-      status: "running",
-      message: "Pelex AI API is online.",
-    };
-  });
-
-  // Health endpoint for monitoring
-  app.get("/health", async () => {
-    return {
-      status: "healthy",
-      timestamp: new Date().toISOString(),
-    };
-  });
-
-  const port = Number(process.env.PORT || 3000);
-
-  try {
-    await app.listen({
-      port,
-      host: "0.0.0.0",
-    });
-
-    app.log.info(`Pelex AI backend listening on port ${port}`);
-  } catch (error) {
-    app.log.error(error);
-    process.exit(1);
-  }
 }
 
-startServer();
+const history = Array.isArray(request.body.history)
+  ? request.body.history
+      .filter(
+        (item) =>
+          item &&
+          ["user", "assistant"].includes(item.role) &&
+          typeof item.content === "string",
+      )
+      .slice(-10)
+      .map((item) => ({
+        role: item.role,
+        content: item.content.slice(0, 4000),
+      }))
+  : [];
+
+const messages: ChatMessage[] = [
+  {
+    role: "system",
+    content:
+      "You are Uncle Pelex AI, a friendly, professional AI assistant. Give useful, clear, and honest answers.",
+  },
+  ...history,
+  {
+    role: "user",
+    content: message.slice(0, 4000),
+  },
+];
+
+try {
+  const result = await chatWithFreeModel(messages, {
+    maxTokens: 700,
+  });
+
+  return {
+    reply: result.text,
+    model: result.model,
+  };
+} catch (error) {
+  request.log.error(error, "Chat request failed");
+
+  return reply.code(503).send({
+    error:
+      "Pelex AI is temporarily unable to respond. Please try again shortly.",
+  });
+}
