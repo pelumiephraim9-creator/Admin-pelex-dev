@@ -10,7 +10,7 @@
 //   ALLOWED_ORIGINS  Text    optional, default https://pelex.tech,https://www.pelex.tech
 
 const PATHS = ['/chat', '/chat/stream', '/auth/guest'];
-const MAX_BODY = 65000;
+const MAX_BODY = 6500000;   // room for up to 6 attached images
 
 export default {
   async fetch(request, env) {
