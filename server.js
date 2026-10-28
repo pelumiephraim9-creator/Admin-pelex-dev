@@ -1,4 +1,4 @@
-'strict';
+'use strict';
 /*
   PELEX PUBLIC AGENT  (code version, replaces the n8n "Public Agent" canvas)
   One file, no npm packages. Needs Node 18 or newer.
@@ -13,6 +13,11 @@
     SUPABASE_URL         required   https://xxxx.supabase.co
     SUPABASE_SERVICE_KEY required   service role key (memory table is not readable by the public)
     SERPER_API_KEY       optional   turns on the web_search tool
+    EDGE_SECRET          advised    long random text; same value in the Cloudflare Worker. Direct hits without it are refused
+    SIGNING_SECRET       advised    long random text; signs guest tokens
+    TURNSTILE_SECRET_KEY needed for guest chat (the secret key from Cloudflare Turnstile)
+    GUEST_DAILY / USER_DAILY  optional  message limits per day (30 / 300)
+    REQUIRE_AUTH         optional   set to 0 only for testing
     ALLOWED_ORIGINS      optional   default: https://pelex.tech,https://www.pelex.tech
     PORT                 set by Render
 
@@ -43,6 +48,15 @@ const CFG = {
   serperUrl: ENV.SERPER_URL || 'https://google.serper.dev/search',
   allowPrivateFetch: ENV.ALLOW_PRIVATE_FETCH === '1',
   rateIpPerMin: +ENV.RATE_IP_PER_MIN || 30,
+  // security
+  edgeSecret: ENV.EDGE_SECRET || '',                       // set the same value in the Cloudflare Worker; requests without it are refused
+  requireAuth: ENV.REQUIRE_AUTH !== '0',                   // chat needs a Supabase login token or a human-checked guest token
+  signingSecret: ENV.SIGNING_SECRET || crypto.randomBytes(32).toString('hex'),
+  turnstileSecret: ENV.TURNSTILE_SECRET_KEY || '',
+  turnstileUrl: ENV.TURNSTILE_VERIFY_URL || 'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+  guestDaily: +ENV.GUEST_DAILY || 30,                      // free messages per guest token per day
+  userDaily: +ENV.USER_DAILY || 300,                       // messages per signed-in person per day
+  allowLocalhost: ENV.ALLOW_LOCALHOST === '1',
   maxInput: 4000,
   historyLimit: 20,
   maxToolRounds: 4,
@@ -459,17 +473,66 @@ async function runAgent({ sid, text, meta, onStep }) {
   return { output: answer, steps };
 }
 
+
+/* ---------------- who is allowed to talk to this server ---------------- */
+const safeEq = (a, b) => { const x = crypto.createHash('sha256').update(String(a)).digest(), y = crypto.createHash('sha256').update(String(b)).digest(); return crypto.timingSafeEqual(x, y); };
+const edgeOk = req => !CFG.edgeSecret || safeEq(req.headers['x-pelex-edge'] || '', CFG.edgeSecret);
+const originOk = req => { const o = req.headers.origin || ''; return CFG.origins.includes(o) || (CFG.allowLocalhost && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o)); };
+function clientIp(req) { if (CFG.edgeSecret && edgeOk(req) && req.headers['x-real-client-ip']) return clip(req.headers['x-real-client-ip'], 60); return ipOf(req); }
+function signGuest() {
+  const p = { id: crypto.randomBytes(8).toString('hex'), exp: Date.now() + 30 * 60 * 1000 };
+  const body = Buffer.from(JSON.stringify(p)).toString('base64url');
+  return { token: 'g1.' + body + '.' + crypto.createHmac('sha256', CFG.signingSecret).update(body).digest('base64url'), exp: p.exp };
+}
+function readGuest(tok) {
+  const m = /^g1\.([\w-]+)\.([\w-]+)$/.exec(tok); if (!m) return null;
+  if (!safeEq(crypto.createHmac('sha256', CFG.signingSecret).update(m[1]).digest('base64url'), m[2])) return null;
+  try { const p = JSON.parse(Buffer.from(m[1], 'base64url').toString()); if (!p.id || !(p.exp > Date.now())) return null; return { kind: 'guest', id: 'g:' + p.id }; } catch (e) { return null; }
+}
+const jwtCache = new Map();
+async function readUser(tok) {
+  if (!sbOn()) return null;
+  const h = crypto.createHash('sha256').update(tok).digest('hex'); const c = jwtCache.get(h); if (c && c.exp > Date.now()) return c.val;
+  try {
+    const t = withTimeout(6000);
+    const r = await fetch(`${CFG.sbUrl}/auth/v1/user`, { signal: t.signal, headers: { apikey: CFG.sbKey, Authorization: 'Bearer ' + tok } }); t.done();
+    if (!r.ok) return null; const u = await r.json(); if (!u || !u.id) return null;
+    const val = { kind: 'user', id: 'u:' + u.id, uid: u.id };
+    if (jwtCache.size > 2000) jwtCache.clear(); jwtCache.set(h, { val, exp: Date.now() + 5 * 60 * 1000 }); return val;
+  } catch (e) { log('login check failed:', e.message); return null; }
+}
+async function identify(req) {
+  const m = /^Bearer\s+(\S+)$/i.exec(String(req.headers.authorization || '')); if (!m) return null;
+  const tok = m[1]; if (tok.startsWith('g1.')) return readGuest(tok); if (tok.startsWith('eyJ')) return await readUser(tok); return null;
+}
+async function handleGuest(req, res) {
+  const ip = clientIp(req);
+  if (!allow('gip:' + ip, 10, 60000) || !allow('gday:' + ip, 60, 86400000)) return send(res, 429, { error: 'Too many checks. Wait a moment and try again.' });
+  if (!CFG.turnstileSecret) return send(res, 503, { error: 'Guest chat is not switched on yet. Please sign in.' });
+  let body; try { body = await readBody(req); } catch (e) { return send(res, e.code || 400, { error: 'Bad request.' }); }
+  const tk = clip(body.turnstileToken, 2100); if (!tk) return send(res, 400, { error: 'The human check is missing.' });
+  try {
+    const t = withTimeout(8000);
+    const r = await fetch(CFG.turnstileUrl, { method: 'POST', signal: t.signal, headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ secret: CFG.turnstileSecret, response: tk, remoteip: ip }).toString() }); t.done();
+    const j = await r.json().catch(() => ({}));
+    const hosts = CFG.origins.map(o => { try { return new URL(o).hostname; } catch (e) { return ''; } });
+    if (!j.success || (j.hostname && !hosts.includes(j.hostname) && !(CFG.allowLocalhost && /^(localhost|127\.0\.0\.1)$/.test(j.hostname)))) return send(res, 403, { error: 'Could not confirm you are human. Please try again.' });
+  } catch (e) { log('human check problem:', e.message); return send(res, 502, { error: 'The human check is not answering. Try again in a moment.' }); }
+  const g = signGuest(); return send(res, 200, { token: g.token, expiresIn: g.exp - Date.now() });
+}
+
 /* ---------------- HTTP ---------------- */
 function cors(req, res) {
   const o = req.headers.origin;
-  if (o && (CFG.origins.includes(o) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o))) {
+  if (o && (CFG.origins.includes(o) || (CFG.allowLocalhost && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o)))) {
     res.setHeader('Access-Control-Allow-Origin', o); res.setHeader('Vary', 'Origin');
   }
   res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('Access-Control-Max-Age', '600');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
 }
-function send(res, code, obj) { const b = JSON.stringify(obj); res.writeHead(code, { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(b) }); res.end(b); }
+function send(res, code, obj) { const b = JSON.stringify(obj); res.writeHead(code, { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(b), 'Cache-Control': 'no-store' }); res.end(b); }
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let n = 0, big = false; const parts = [];
@@ -483,15 +546,23 @@ function readBody(req) {
 function ipOf(req) { return String(req.headers['cf-connecting-ip'] || (req.headers['x-forwarded-for'] || '').split(',')[0] || req.socket.remoteAddress || '').trim(); }
 
 async function handleChat(req, res, stream) {
-  const ip = ipOf(req);
+  const ip = clientIp(req);
   if (!allow('ip:' + ip, CFG.rateIpPerMin, 60000)) return send(res, 429, { error: 'Too many messages. Wait a moment and try again.' });
+  let who = null;
+  if (CFG.requireAuth) {
+    who = await identify(req);
+    if (!who) return send(res, 401, { error: 'Please sign in, or confirm you are human, to chat.', code: 'auth' });
+    if (!allow('who:' + who.id, 15, 60000)) return send(res, 429, { error: 'You are sending messages too fast. Wait a moment.' });
+    if (!allow('whoday:' + who.id, who.kind === 'user' ? CFG.userDaily : CFG.guestDaily, 86400000)) return send(res, 429, { error: who.kind === 'user' ? 'Daily message limit reached. Please come back tomorrow.' : 'You have used your free guest messages for today. Sign in for more.' });
+  }
   let body; try { body = await readBody(req); } catch (e) { return send(res, e.code || 400, { error: e.code === 413 ? 'Message too large.' : 'Bad request.' }); }
   const text = clip(body.chatInput, CFG.maxInput).trim();
   if (!text) return send(res, 400, { error: 'Empty message.' });
   const sid = cleanSid(body.sessionId);
   if (!allow('sid:' + sid, 15, 60000)) return send(res, 429, { error: 'Too many messages in this chat. Wait a moment.' });
   if (!allow('day:' + ip, 600, 86400000)) return send(res, 429, { error: 'Daily limit reached. Please come back tomorrow.' });
-  const meta = body.metadata && typeof body.metadata === 'object' ? body.metadata : {};
+  const meta = Object.assign({}, body.metadata && typeof body.metadata === 'object' ? body.metadata : {});
+  delete meta.accessToken; delete meta.userId; if (who && who.uid) meta.userId = who.uid;   // identity comes from the verified login, never from the message
 
   if (!stream) {
     try { const r = await runAgent({ sid, text, meta }); return send(res, 200, r); }
@@ -515,7 +586,13 @@ const server = http.createServer(async (req, res) => {
   const path = (req.url || '').split('?')[0].replace(/\/+$/, '') || '/';
   try {
     if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
-    if (req.method === 'GET' && path === '/health') return send(res, 200, { ok: true, models: providers().map(p => p.name), memory: sbOn(), search: !!CFG.serper, files: sbOn(), extraTools: [...EXT.keys()] });
+    const guarded = path === '/chat' || path === '/chat/stream' || path === '/auth/guest' || path === '/';
+    if (guarded && req.method === 'POST') {
+      if (!edgeOk(req)) return send(res, 403, { error: 'Forbidden.' });
+      if (CFG.requireAuth && !originOk(req)) return send(res, 403, { error: 'This address only works from the Pelex site.' });
+    }
+    if (req.method === 'POST' && path === '/auth/guest') return await handleGuest(req, res);
+    if (req.method === 'GET' && path === '/health') return send(res, 200, { ok: true, auth: { required: CFG.requireAuth, edge: !!CFG.edgeSecret, guest: !!CFG.turnstileSecret }, models: providers().map(p => p.name), memory: sbOn(), search: !!CFG.serper, files: sbOn(), extraTools: [...EXT.keys()] });
     if (req.method === 'POST' && (path === '/chat' || path === '/')) return await handleChat(req, res, false);
     if (req.method === 'POST' && path === '/chat/stream') return await handleChat(req, res, true);
     return send(res, 404, { error: 'Not found' });
@@ -523,4 +600,4 @@ const server = http.createServer(async (req, res) => {
 });
 server.requestTimeout = 100000;
 if (require.main === module) server.listen(CFG.port, () => log('Pelex public agent listening on', CFG.port, '| models:', providers().map(p => p.name).join(', ') || 'NONE SET', '| memory:', sbOn(), '| search:', !!CFG.serper));
-module.exports = { server, htmlToText, privateIp, safeUrl, CFG, runTool, calc, EXT, saveFile, purgeMedia };
+module.exports = { server, htmlToText, privateIp, safeUrl, CFG, runTool, calc, EXT, saveFile, purgeMedia, signGuest };
