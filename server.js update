@@ -1,0 +1,226 @@
+PELEX MODEL AUTO-SWITCH PATCH
+=============================
+
+This patch keeps the existing chat interface, activity steps, tools, memory, auth,
+and all HTTP routes unchanged. It changes only model discovery and selection.
+
+IMPORTANT:
+- OpenRouter's primary route remains `openrouter/free`.
+- OpenRouter fallback candidates are discovered from OpenRouter's live `/models`
+  catalogue and filtered to free models only.
+- Groq's primary model remains `GROQ_MODEL` (default below); if it fails, Groq
+  candidates are discovered from Groq's live `/models` endpoint.
+- If all models at one provider fail, the other provider is tried.
+- Discovery is cached for 10 minutes to avoid requesting the catalogue on every turn.
+- This is a patch, not a full replacement server.js. Replace the marked sections
+  in your existing file exactly as described below.
+
+1) Replace the `orModels` and `groqModel` lines inside CFG with:
+
+  orModels: ['openrouter/free'],
+  groqModel: ENV.GROQ_MODEL || 'llama-3.3-70b-versatile',
+
+The OpenRouter startup model is deliberately fixed to `openrouter/free`; no
+OPENROUTER_MODELS list is needed.
+
+2) Replace the entire section beginning with:
+   /* ---------------- model calls with fallback ---------------- */
+   and ending immediately before:
+   /* ---------------- the agent loop ---------------- */
+with this code:
+
+/* ---------------- model calls with dynamic provider fallback ---------------- */
+const MODEL_CACHE_MS = 10 * 60 * 1000;
+const discoveredModelCache = new Map();
+
+function uniqueModels(models) {
+  return [...new Set(models.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim()))];
+}
+
+async function fetchModelCatalogue(provider) {
+  const now = Date.now();
+  const cached = discoveredModelCache.get(provider.name);
+  if (cached && cached.expires > now) return cached.models;
+
+  const t = withTimeout(12000);
+  let r;
+  try {
+    r = await fetch(provider.base + '/models', {
+      signal: t.signal,
+      headers: { Authorization: 'Bearer ' + provider.key, Accept: 'application/json', ...provider.extra }
+    });
+  } finally {
+    t.done();
+  }
+  if (!r.ok) throw new Error(provider.name + ' model catalogue answered ' + r.status);
+  const j = await r.json();
+  const rows = Array.isArray(j.data) ? j.data : [];
+  let models = [];
+
+  if (provider.name === 'openrouter') {
+    // Only include models explicitly marked free by their model ID or by
+    // zero prompt/completion pricing. Never use a paid model as a fallback.
+    models = rows.filter(m => {
+      const id = String(m.id || '');
+      if (!id || id === 'openrouter/free') return false;
+      const freeSuffix = /:free$/i.test(id);
+      const prompt = Number(m.pricing && m.pricing.prompt);
+      const completion = Number(m.pricing && m.pricing.completion);
+      const zeroPriced = m.pricing &&
+        Number.isFinite(prompt) && Number.isFinite(completion) &&
+        prompt === 0 && completion === 0;
+      return freeSuffix || zeroPriced;
+    }).map(m => String(m.id));
+  } else if (provider.name === 'groq') {
+    // Keep likely text/chat models and exclude audio, transcription,
+    // embedding, moderation/guard and image-only models.
+    models = rows.filter(m => {
+      const id = String(m.id || '').toLowerCase();
+      if (!id) return false;
+      if (m.active === false) return false;
+      return !/(whisper|speech|audio|tts|transcri|embed|guard|moderation|vision-only|image)/i.test(id);
+    }).map(m => String(m.id));
+  }
+
+  models = uniqueModels(models);
+  discoveredModelCache.set(provider.name, { models, expires: now + MODEL_CACHE_MS });
+  return models;
+}
+
+function providerConfigs() {
+  const list = [];
+  if (CFG.orKey) list.push({
+    name: 'openrouter',
+    base: CFG.orBase,
+    key: CFG.orKey,
+    primary: 'openrouter/free',
+    extra: { 'HTTP-Referer': 'https://pelex.tech', 'X-Title': 'Pelex' }
+  });
+  if (CFG.groqKey) list.push({
+    name: 'groq',
+    base: CFG.groqBase,
+    key: CFG.groqKey,
+    primary: CFG.groqModel,
+    extra: {}
+  });
+  return list;
+}
+
+// Keep health/startup status informative without requiring a network request.
+function providers() {
+  const p = [];
+  for (const provider of providerConfigs()) {
+    p.push({
+      name: provider.name + ':' + provider.primary,
+      base: provider.base,
+      key: provider.key,
+      model: provider.primary,
+      extra: provider.extra
+    });
+  }
+  return p;
+}
+
+async function callOne(p, messages, withTools) {
+  const body = { model: p.model, messages, temperature: 0.6, max_tokens: 2500 };
+  if (withTools) { body.tools = tools(); body.tool_choice = 'auto'; }
+  const t = withTimeout(CFG.llmTimeoutMs);
+  let r;
+  try {
+    r = await fetch(p.base + '/chat/completions', {
+      method: 'POST',
+      signal: t.signal,
+      headers: { Authorization: 'Bearer ' + p.key, 'Content-Type': 'application/json', ...p.extra },
+      body: JSON.stringify(body)
+    });
+  } finally {
+    t.done();
+  }
+  const txt = await r.text();
+  let j = null;
+  try { j = JSON.parse(txt); } catch (e) {}
+  if (!r.ok) {
+    const err = new Error(`${p.name} answered ${r.status}: ${clip(j && j.error && (j.error.message || j.error) || txt, 160)}`);
+    err.status = r.status;
+    throw err;
+  }
+  const msg = j && j.choices && j.choices[0] && j.choices[0].message;
+  if (!msg) throw new Error(`${p.name} sent an empty answer`);
+  return msg;
+}
+
+async function tryProviderModels(provider, messages, withTools) {
+  const attempted = new Set();
+  const candidates = [provider.primary];
+
+  // Discover alternatives lazily. The primary is always attempted first.
+  try {
+    const discovered = await fetchModelCatalogue(provider);
+    for (const model of discovered) if (!candidates.includes(model)) candidates.push(model);
+  } catch (e) {
+    log(provider.name, 'model discovery unavailable:', e.message);
+  }
+
+  let last = null;
+  for (const model of candidates) {
+    if (!model || attempted.has(model)) continue;
+    attempted.add(model);
+    const p = {
+      name: provider.name + ':' + model,
+      base: provider.base,
+      key: provider.key,
+      model,
+      extra: provider.extra
+    };
+    try {
+      log('trying model:', p.name);
+      const answer = await callOne(p, messages, withTools);
+      log('model selected:', p.name);
+      return answer;
+    } catch (e) {
+      last = e;
+      log('model problem:', e.message);
+      // Authentication, malformed request or permission errors usually affect
+      // the provider/key, so don't waste time trying every model for these.
+      if (e.status && e.status < 500 && e.status !== 429) break;
+      await new Promise(resolve => setTimeout(resolve, 350));
+    }
+  }
+  throw last || new Error(provider.name + ' had no usable models.');
+}
+
+async function callLLM(messages, withTools) {
+  const providersToTry = providerConfigs();
+  if (!providersToTry.length) throw new Error('No model key is set on the server.');
+
+  let last = null;
+  // Provider order: OpenRouter first, then Groq. If every model from the first
+  // provider fails, continue to the next provider automatically.
+  for (const provider of providersToTry) {
+    try {
+      return await tryProviderModels(provider, messages, withTools);
+    } catch (e) {
+      last = e;
+      log(provider.name, 'provider exhausted; switching provider:', e.message);
+    }
+  }
+  throw last || new Error('Every model failed.');
+}
+
+3) After replacing the code:
+- Save the file as `server.js`.
+- Commit/push it to the Git repository connected to Render, or upload it using
+  your normal deployment process.
+- In Render, keep OPENROUTER_API_KEY and GROQ_API_KEY set.
+- You may leave OPENROUTER_MODELS unset; this patch does not use a manually
+  supplied list.
+- GROQ_MODEL is optional. If set, it remains Groq's first-choice model.
+- Check GET /health after deployment. It shows the primary routes, not every
+  dynamically discovered fallback candidate.
+
+Operational note:
+A model may be listed by a provider but still reject tool calls, be temporarily
+rate-limited, or be incompatible. The backend will try the next discovered model
+and then the other provider. OpenRouter's `openrouter/free` route itself may
+select a free model dynamically; the explicit catalogue fallback is used if that
+route fails.
