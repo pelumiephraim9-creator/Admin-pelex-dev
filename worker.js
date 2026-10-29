@@ -29,7 +29,7 @@ export default {
     const origin_url = String(env.ORIGIN_URL).replace(/\/+$/, '');
 
     if (url.pathname === '/health' && request.method === 'GET') {
-      try { const h = await fetch(origin_url + '/health'); return new Response(h.body, { status: h.status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }); }
+      try { const h = await fetch(origin_url + '/health'); return new Response(h.body, { status: h.status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...cors } }); }
       catch (e) { return reply(502, { error: 'The server is not answering.' }); }
     }
     if (!PATHS.includes(url.pathname)) return reply(404, { error: 'Not found' });
