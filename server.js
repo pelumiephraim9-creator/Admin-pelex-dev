@@ -12,6 +12,7 @@
     GROQ_MODEL           optional   default: llama-3.3-70b-versatile
     SUPABASE_URL         required   https://xxxx.supabase.co
     SUPABASE_SERVICE_KEY required   service role key (memory table is not readable by the public)
+    SUPABASE_ANON_KEY    advised    the public (anon / publishable) key, used only to check logins
     SERPER_API_KEY       optional   turns on the web_search tool
     EDGE_SECRET          advised    long random text; same value in the Cloudflare Worker. Direct hits without it are refused
     SIGNING_SECRET       advised    long random text; signs guest tokens
@@ -417,36 +418,111 @@ async function runTool(name, args, run) {
 }
 
 /* ---------------- model calls with fallback ---------------- */
-function providers(opt) {
-  opt = opt || {}; const p = [];
-  const base = opt.vision && CFG.visionModels.length ? CFG.visionModels : opt.code && CFG.codeModels.length ? CFG.codeModels.concat(CFG.orModels.filter(m => !CFG.codeModels.includes(m))) : CFG.orModels;
-  if (CFG.orKey) for (const m of base) p.push({ name: 'openrouter:' + m, base: CFG.orBase, key: CFG.orKey, model: m, extra: { 'HTTP-Referer': 'https://pelex.tech', 'X-Title': 'Pelex' } });
-  if (CFG.groqKey && (!opt.vision || CFG.groqVisionModel)) p.push({ name: 'groq:' + (opt.vision ? CFG.groqVisionModel : CFG.groqModel), base: CFG.groqBase, key: CFG.groqKey, model: opt.vision ? CFG.groqVisionModel : CFG.groqModel, extra: {} });
-  return p;
+/* ---------------- model chain: 6 providers, task routing, privacy gateway ----------------
+   Order per task (change with ROUTE_GENERAL, ROUTE_CODING, ROUTE_DATA, ROUTE_VISION in Render):
+   general  groq > openrouter > cloudflare > mistral > sambanova > claude
+   coding   mistral > groq > openrouter > sambanova > cloudflare > claude
+   data     sambanova > groq > mistral > openrouter > cloudflare > claude
+   vision   openrouter > claude   (add groq only if GROQ_VISION_MODEL is set)
+   A provider with no key is skipped. A failing provider cools off for a while so the next message does not wait on it. */
+const PRIVATE_OK = new Set((ENV.PRIVATE_PROVIDERS || 'groq,cloudflare,mistral,sambanova,claude').split(',').map(x => x.trim()).filter(Boolean));
+const DEFAULT_ROUTES = { general: 'groq,openrouter,cloudflare,mistral,sambanova,claude', coding: 'mistral,groq,openrouter,sambanova,cloudflare,claude', data: 'sambanova,groq,mistral,openrouter,cloudflare,claude', vision: 'openrouter,claude' };
+const routeOf = task => String(ENV['ROUTE_' + String(task).toUpperCase()] || DEFAULT_ROUTES[task] || DEFAULT_ROUTES.general).split(',').map(x => x.trim()).filter(Boolean);
+Object.assign(CFG, {
+  cfModel: ENV.CF_MODEL || '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+  mistralKey: ENV.MISTRAL_API_KEY || '', mistralBase: ENV.MISTRAL_BASE || 'https://api.mistral.ai/v1', mistralModel: ENV.MISTRAL_MODEL || 'mistral-large-latest', mistralCodeModel: ENV.MISTRAL_CODE_MODEL || ENV.MISTRAL_MODEL || 'codestral-latest',
+  sambaKey: ENV.SAMBANOVA_API_KEY || '', sambaBase: ENV.SAMBANOVA_BASE || 'https://api.sambanova.ai/v1', sambaModel: ENV.SAMBANOVA_MODEL || 'Meta-Llama-3.3-70B-Instruct',
+  claudeKey: ENV.ANTHROPIC_API_KEY || '', claudeBase: ENV.ANTHROPIC_BASE || 'https://api.anthropic.com', claudeModel: ENV.CLAUDE_MODEL || 'claude-haiku-5-5', claudeDaily: +ENV.CLAUDE_DAILY_MAX || 200,
+  cfBase: ENV.CF_AI_BASE || `https://api.cloudflare.com/client/v4/accounts/${ENV.CF_ACCOUNT_ID || 'x'}/ai/v1`,
+});
+const cooling = new Map(), usage = {}, claudeUse = { day: '', n: 0 };
+function claudeAllowed() { const d = new Date().toISOString().slice(0, 10); if (claudeUse.day !== d) { claudeUse.day = d; claudeUse.n = 0; } return claudeUse.n < CFG.claudeDaily; }
+function buildProvider(id, task) {
+  const code = task === 'coding', vision = task === 'vision', oai = (name, url, key, model, extra) => [{ id, kind: 'openai', name: id + ':' + model, url: url + '/chat/completions', key, model, extra: extra || {} }];
+  if (id === 'groq') { const m = vision ? CFG.groqVisionModel : CFG.groqModel; return CFG.groqKey && m ? oai(id, CFG.groqBase, CFG.groqKey, m) : []; }
+  if (id === 'openrouter') {
+    if (!CFG.orKey) return [];
+    const ms = vision && CFG.visionModels.length ? CFG.visionModels : code && CFG.codeModels.length ? CFG.codeModels.concat(CFG.orModels.filter(m => !CFG.codeModels.includes(m))) : CFG.orModels;
+    return ms.map(m => oai(id, CFG.orBase, CFG.orKey, m, { 'HTTP-Referer': 'https://pelex.tech', 'X-Title': 'Pelex' })[0]);
+  }
+  if (id === 'cloudflare') return ENV.CF_ACCOUNT_ID && ENV.CF_API_TOKEN && !vision ? oai(id, CFG.cfBase, ENV.CF_API_TOKEN, CFG.cfModel) : [];
+  if (id === 'mistral') return CFG.mistralKey && !vision ? oai(id, CFG.mistralBase, CFG.mistralKey, code ? CFG.mistralCodeModel : CFG.mistralModel) : [];
+  if (id === 'sambanova') return CFG.sambaKey && !vision ? oai(id, CFG.sambaBase, CFG.sambaKey, CFG.sambaModel) : [];
+  if (id === 'claude') return CFG.claudeKey ? [{ id, kind: 'anthropic', name: 'claude:' + CFG.claudeModel, url: CFG.claudeBase + '/v1/messages', key: CFG.claudeKey, model: CFG.claudeModel, extra: {} }] : [];
+  return [];
+}
+function chain(task, privacy) {
+  const out = [];
+  for (const id of routeOf(task)) { if (privacy === 'private' && !PRIVATE_OK.has(id)) continue; out.push(...buildProvider(id, task)); }
+  return out;
+}
+const providers = () => chain('general', 'public');
+
+// privacy gateway: secrets and card numbers never leave the server inside a prompt
+const luhn = d => { let n = 0, alt = false; for (let i = d.length - 1; i >= 0; i--) { let x = +d[i]; if (alt) { x *= 2; if (x > 9) x -= 9; } n += x; alt = !alt; } return n % 10 === 0; };
+function redact(t) {
+  return String(t == null ? '' : t)
+    .replace(/eyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]{5,}/g, '[hidden token]')
+    .replace(/\b(?:sk|pk|rk)-[A-Za-z0-9_-]{16,}\b|AIza[0-9A-Za-z_-]{30,}|ghp_[A-Za-z0-9]{30,}|xox[bp]-[\w-]{10,}/g, '[hidden key]')
+    .replace(/\b(?:\d[ -]?){13,19}\b/g, m => { const d = m.replace(/\D/g, ''); return d.length >= 13 && d.length <= 19 && luhn(d) ? '[hidden card number]' : m; });
+}
+const anthContent = c => typeof c === 'string' ? c : c.map(p => { if (p.type === 'text') return { type: 'text', text: p.text }; const m = /^data:(image\/[a-z]+);base64,(.+)$/.exec((p.image_url || {}).url || ''); return m ? { type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } } : { type: 'text', text: '[image]' }; });
+function toAnthropic(messages, withTools) {
+  let system = ''; const out = [];
+  for (const m of messages) {
+    if (m.role === 'system') { system += (system ? '\n\n' : '') + m.content; continue; }
+    if (m.role === 'user') { out.push({ role: 'user', content: anthContent(m.content) }); continue; }
+    if (m.role === 'assistant') {
+      const blocks = []; if (m.content) blocks.push({ type: 'text', text: m.content });
+      for (const c of (m.tool_calls || [])) { let input = {}; try { input = JSON.parse(c.function.arguments || '{}'); } catch (e) {} blocks.push({ type: 'tool_use', id: c.id, name: c.function.name, input }); }
+      if (blocks.length) out.push({ role: 'assistant', content: blocks }); continue;
+    }
+    if (m.role === 'tool') {
+      const blk = { type: 'tool_result', tool_use_id: m.tool_call_id, content: String(m.content) }; const last = out[out.length - 1];
+      if (last && last.role === 'user' && Array.isArray(last.content) && last.content.every(b => b.type === 'tool_result')) last.content.push(blk); else out.push({ role: 'user', content: [blk] });
+    }
+  }
+  return { system, messages: out, tools: withTools ? tools().map(t => ({ name: t.function.name, description: t.function.description, input_schema: t.function.parameters })) : undefined };
 }
 async function callOne(p, messages, withTools) {
-  const body = { model: p.model, messages, temperature: 0.6, max_tokens: 2500 };
-  if (withTools) { body.tools = tools(); body.tool_choice = 'auto'; }
-  const t = withTimeout(CFG.llmTimeoutMs);
-  let r;
-  try { r = await fetch(p.base + '/chat/completions', { method: 'POST', signal: t.signal, headers: { Authorization: 'Bearer ' + p.key, 'Content-Type': 'application/json', ...p.extra }, body: JSON.stringify(body) }); }
-  finally { t.done(); }
+  const t = withTimeout(CFG.llmTimeoutMs); let r;
+  try {
+    if (p.kind === 'anthropic') {
+      const a = toAnthropic(messages, withTools);
+      r = await fetch(p.url, { method: 'POST', signal: t.signal, headers: { 'x-api-key': p.key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' }, body: JSON.stringify({ model: p.model, max_tokens: 2500, temperature: 0.6, system: a.system, messages: a.messages, ...(a.tools ? { tools: a.tools } : {}) }) });
+    } else {
+      const body = { model: p.model, messages, temperature: 0.6, max_tokens: 2500 };
+      if (withTools) { body.tools = tools(); body.tool_choice = 'auto'; }
+      r = await fetch(p.url, { method: 'POST', signal: t.signal, headers: { Authorization: 'Bearer ' + p.key, 'Content-Type': 'application/json', ...p.extra }, body: JSON.stringify(body) });
+    }
+  } finally { t.done(); }
   const txt = await r.text(); let j = null; try { j = JSON.parse(txt); } catch (e) {}
   if (!r.ok) { const err = new Error(`${p.name} answered ${r.status}: ${clip(j && j.error && (j.error.message || j.error) || txt, 160)}`); err.status = r.status; throw err; }
+  if (p.kind === 'anthropic') {
+    const blocks = (j && j.content) || [];
+    if (!blocks.length) throw new Error(`${p.name} sent an empty answer`);
+    const calls = blocks.filter(b => b.type === 'tool_use').map(b => ({ id: b.id, type: 'function', function: { name: b.name, arguments: JSON.stringify(b.input || {}) } }));
+    return { role: 'assistant', content: blocks.filter(b => b.type === 'text').map(b => b.text).join('\n'), ...(calls.length ? { tool_calls: calls } : {}) };
+  }
   const msg = j && j.choices && j.choices[0] && j.choices[0].message;
   if (!msg) throw new Error(`${p.name} sent an empty answer`);
   return msg;
 }
 async function callLLM(messages, withTools, opt) {
-  const list = providers(opt); if (!list.length) throw new Error('No model key is set on the server.');
+  opt = opt || {};
+  const all = chain(opt.task || 'general', opt.privacy || 'public').filter(p => p.id !== 'claude' || claudeAllowed());
+  if (!all.length) throw new Error('No model key is set on the server.');
+  const live = all.filter(p => (cooling.get(p.name) || 0) <= Date.now());
   let last = null;
-  for (const p of list) {
+  for (const p of (live.length ? live : all)) {
     for (let attempt = 0; attempt < 2; attempt++) {
-      try { return await callOne(p, messages, withTools); }
+      try { const m = await callOne(p, messages, withTools); usage[p.name] = (usage[p.name] || 0) + 1; if (p.id === 'claude') claudeUse.n++; return m; }
       catch (e) {
-        last = e; log('model problem:', e.message);
-        if (e.status && e.status < 500 && e.status !== 429) break;      // bad request or auth: retrying will not help, go to next model
-        if (attempt === 0) await new Promise(r => setTimeout(r, 700));
+        last = e; log('model problem:', e.message); const st = e.status;
+        if (st === 401 || st === 403) { cooling.set(p.name, Date.now() + 600000); break; }   // bad key: skip for 10 minutes
+        if (st === 429) { cooling.set(p.name, Date.now() + 60000); break; }                // busy: next provider now
+        if (st && st < 500) break;                                                          // bad request: retrying will not help
+        if (attempt === 1) cooling.set(p.name, Date.now() + 30000); else await new Promise(r => setTimeout(r, 500));
       }
     }
   }
@@ -454,12 +530,14 @@ async function callLLM(messages, withTools, opt) {
 }
 
 /* ---------------- the agent loop ---------------- */
+const classify = (t, img) => img ? 'vision' : looksLikeCode(t) ? 'coding' : /\b(csv|json|spreadsheet|excel|dataset|statistic|average|median|correlation|forecast|analy[sz]e|analysis|chart|graph|pivot|percentage|budget)\b/i.test(t) ? 'data' : 'general';
 const looksLikeCode = t => /```|\b(code|function|bug|debug|script|html|css|javascript|typescript|python|react|node|sql|api|regex|stack ?trace|compile|syntax|django|flask|php|java|c\+\+|rust|golang)\b/i.test(String(t || ''));
-async function runAgent({ sid, text, meta, onStep, images }) {
+async function runAgent({ sid, text, meta, onStep, images, privacy }) {
+  text = redact(text);   // privacy gateway
   const started = Date.now();
   const history = await loadHistory(sid);
   const imgs = Array.isArray(images) ? images : [];
-  const opt = { vision: imgs.length > 0, code: !imgs.length && looksLikeCode(text) };
+  const task = classify(text, imgs.length > 0), opt = { task, privacy: privacy || 'public' };
   const userMsg = imgs.length ? { role: 'user', content: [{ type: 'text', text }, ...imgs.map(u => ({ type: 'image_url', image_url: { url: u } }))] } : { role: 'user', content: text };
   const messages = [{ role: 'system', content: systemPrompt(meta) }, ...history, userMsg];
   const steps = []; let answer = ''; const run = { attachments: [] };
@@ -506,8 +584,8 @@ async function readUser(tok) {
   const h = crypto.createHash('sha256').update(tok).digest('hex'); const c = jwtCache.get(h); if (c && c.exp > Date.now()) return c.val;
   try {
     const t = withTimeout(6000);
-    const r = await fetch(`${CFG.sbUrl}/auth/v1/user`, { signal: t.signal, headers: { apikey: CFG.sbKey, Authorization: 'Bearer ' + tok } }); t.done();
-    if (!r.ok) return null; const u = await r.json(); if (!u || !u.id) return null;
+    const r = await fetch(`${CFG.sbUrl}/auth/v1/user`, { signal: t.signal, headers: { apikey: ENV.SUPABASE_ANON_KEY || CFG.sbKey, Authorization: 'Bearer ' + tok } }); t.done();
+    if (!r.ok) { log('login check refused by Supabase:', r.status, clip(await r.text().catch(() => ''), 140)); return null; } const u = await r.json(); if (!u || !u.id) return null;
     const val = { kind: 'user', id: 'u:' + u.id, uid: u.id };
     if (jwtCache.size > 2000) jwtCache.clear(); jwtCache.set(h, { val, exp: Date.now() + 5 * 60 * 1000 }); return val;
   } catch (e) { log('login check failed:', e.message); return null; }
@@ -606,7 +684,7 @@ const server = http.createServer(async (req, res) => {
       if (CFG.requireAuth && !originOk(req)) return send(res, 403, { error: 'This address only works from the Pelex site.' });
     }
     if (req.method === 'POST' && path === '/auth/guest') return await handleGuest(req, res);
-    if (req.method === 'GET' && path === '/health') return send(res, 200, { ok: true, auth: { required: CFG.requireAuth, edge: !!CFG.edgeSecret, guest: !!CFG.turnstileSecret }, models: providers().map(p => p.name), memory: sbOn(), search: !!CFG.serper, files: sbOn(), extraTools: [...EXT.keys()] });
+    if (req.method === 'GET' && path === '/health') return send(res, 200, { ok: true, auth: { required: CFG.requireAuth, edge: !!CFG.edgeSecret, guest: !!CFG.turnstileSecret }, models: providers().map(p => p.name), chains: Object.fromEntries(['general', 'coding', 'data', 'vision'].map(t => [t, [...new Set(chain(t, 'public').map(p => p.id))]])), usage, claudeToday: claudeUse.n, memory: sbOn(), search: !!CFG.serper, files: sbOn(), extraTools: [...EXT.keys()] });
     if (req.method === 'POST' && (path === '/chat' || path === '/')) return await handleChat(req, res, false);
     if (req.method === 'POST' && path === '/chat/stream') return await handleChat(req, res, true);
     return send(res, 404, { error: 'Not found' });
@@ -614,4 +692,4 @@ const server = http.createServer(async (req, res) => {
 });
 server.requestTimeout = 100000;
 if (require.main === module) server.listen(CFG.port, () => log('Pelex public agent listening on', CFG.port, '| models:', providers().map(p => p.name).join(', ') || 'NONE SET', '| memory:', sbOn(), '| search:', !!CFG.serper));
-module.exports = { server, htmlToText, privateIp, safeUrl, CFG, runTool, calc, EXT, saveFile, purgeMedia, signGuest };
+module.exports = { chain, redact, classify, toAnthropic, server, htmlToText, privateIp, safeUrl, CFG, runTool, calc, EXT, saveFile, purgeMedia, signGuest };
