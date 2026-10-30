@@ -36,8 +36,9 @@ module.exports = {
     if (p.length < 3) throw new Error('Describe the image you want.');
     const errors = []; let img = null;
     if (E.CF_ACCOUNT_ID && E.CF_API_TOKEN) { try { img = await viaCloudflare(p, ctx); } catch (e) { errors.push(e.message); ctx.log('image: cloudflare failed:', e.message); } }
+    else errors.push('Cloudflare is not set up (CF_ACCOUNT_ID or CF_API_TOKEN missing)');
     if (!img) { try { img = await viaPollinations(p, ctx); } catch (e) { errors.push(e.message); ctx.log('image: pollinations failed:', e.message); } }
-    if (!img) throw new Error('Both image services failed right now. Please try again in a minute.');
+    if (!img) throw new Error('Both image services failed right now. Reasons: ' + errors.join(' | ') + '.');
     const ext = img.mime === 'image/png' ? 'png' : img.mime === 'image/webp' ? 'webp' : 'jpg';
     const f = await ctx.saveFile({ name: 'pelex-image.' + ext, mime: img.mime, bytes: img.bytes, folder: 'images' });
     const md = `![Generated image](${f.url})`;
