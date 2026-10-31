@@ -70,7 +70,7 @@ const CFG = {
   userDaily: +ENV.USER_DAILY || 300,                       // messages per signed-in person per day
   allowLocalhost: ENV.ALLOW_LOCALHOST === '1',
   sttModel: ENV.STT_MODEL || 'whisper-large-v3-turbo',
-  hookSecret: ENV.HOOK_SECRET || '', resendKey: ENV.RESEND_API_KEY || '', resendUrl: ENV.RESEND_BASE || 'https://api.resend.com', emailFrom: ENV.EMAIL_FROM || 'Pelex <hello@pelex.tech>', siteUrl: ENV.SITE_URL || 'https://pelex.tech',
+  hookSecret: ENV.HOOK_SECRET || '', resendKey: ENV.RESEND_API_KEY || '', resendUrl: ENV.RESEND_BASE || 'https://api.resend.com', emailFrom: ENV.EMAIL_FROM || 'Pelex <hello@pelex.tech>', emailNoReplyFrom: ENV.EMAIL_NOREPLY_FROM || ENV.EMAIL_FROM || 'Pelex <hello@pelex.tech>', paystackSecret: ENV.PAYSTACK_SECRET_KEY || '', siteUrl: ENV.SITE_URL || 'https://pelex.tech',
   maxInput: 4000,
   historyLimit: 40,
   maxToolRounds: 4,
@@ -696,10 +696,10 @@ async function handleGuest(req, res) {
 
 /* ---------------- emails (Resend). Sign-in codes and password resets go through Supabase Auth SMTP; this sends the welcome email ---------------- */
 const esc = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-async function sendEmail({ to, subject, html, text }) {
+async function sendEmail({ to, subject, html, text, from }) {
   if (!CFG.resendKey) throw new Error('Email is not set up (RESEND_API_KEY missing).');
   const t = withTimeout(12000); let r;
-  try { r = await fetch(CFG.resendUrl + '/emails', { method: 'POST', signal: t.signal, headers: { Authorization: 'Bearer ' + CFG.resendKey, 'Content-Type': 'application/json' }, body: JSON.stringify({ from: CFG.emailFrom, to: [to], subject, html, text }) }); }
+  try { r = await fetch(CFG.resendUrl + '/emails', { method: 'POST', signal: t.signal, headers: { Authorization: 'Bearer ' + CFG.resendKey, 'Content-Type': 'application/json' }, body: JSON.stringify({ from: from || CFG.emailFrom, to: [to], subject, html, text }) }); }
   finally { t.done(); }
   if (!r.ok) throw new Error('The email service answered ' + r.status + ': ' + clip(await r.text().catch(() => ''), 140));
 }
@@ -735,6 +735,75 @@ async function handleUserCreated(req, res) {
   return send(res, 200, { sent: true });
 }
 
+
+
+/* ---------------- payment receipts + product mail ----------------
+   Paystack webhook verifies the raw-body HMAC before trusting an event.
+   Receipt sends only for charge.success and is deduplicated in Supabase.
+*/
+async function readRaw(req, maxBytes = 1000000) {
+  return await new Promise((resolve, reject) => {
+    const chunks=[]; let size=0;
+    req.on('data', c => { size += c.length; if (size > maxBytes) { const e=new Error('Payload too large'); e.code=413; reject(e); req.destroy(); } else chunks.push(c); });
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+function money(amount, currency) {
+  const n = Number(amount);
+  if (!Number.isFinite(n) || n < 0) return 'Amount unavailable';
+  return new Intl.NumberFormat('en', { style:'currency', currency: /^[A-Z]{3}$/.test(currency || '') ? currency : 'NGN' }).format(n / 100);
+}
+function receiptMail({ name, reference, amount, currency, product }) {
+  const safeName=esc(name || 'there'), safeRef=esc(reference), safeProduct=esc(product || 'Pelex');
+  const value=money(amount,currency);
+  return {
+    subject: 'Your Pelex payment receipt',
+    text: `Hello ${name || 'there'},\n\nWe have confirmed your payment for ${product || 'Pelex'}.\nAmount: ${value}\nReference: ${reference}\n\nThank you for choosing Pelex.\nPelex Team`,
+    html: `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;padding:26px;color:#14213d"><div style="height:4px;background:#6495ED;border-radius:4px"></div><h2>Payment confirmed</h2><p>Hello ${safeName},</p><p>Your payment for <b>${safeProduct}</b> has been confirmed.</p><div style="background:#f3f6fc;padding:18px;border-radius:12px"><p><b>Amount:</b> ${esc(value)}</p><p><b>Reference:</b> ${safeRef}</p></div><p>Thank you for choosing Pelex.</p><p style="color:#667085;font-size:12px">This receipt confirms the successful Paystack transaction.</p></div>`
+  };
+}
+async function claimEmail(kind, key) {
+  if (!sbOn()) throw new Error('Supabase service connection is not configured.');
+  const r=await fetch(CFG.sbUrl+'/rest/v1/email_log',{method:'POST',headers:{...sbHead(),Prefer:'resolution=ignore-duplicates,return=representation'},body:JSON.stringify({user_id:key,kind})});
+  if(!r.ok) throw new Error('Could not claim email delivery record ('+r.status+').');
+  const rows=await r.json().catch(()=>[]);
+  return Array.isArray(rows) && rows.length>0;
+}
+async function handlePaystackWebhook(req,res) {
+  if(!CFG.paystackSecret || !CFG.resendKey || !sbOn()) return send(res,503,{error:'Payment email service is not configured.'});
+  let raw; try { raw=await readRaw(req,1000000); } catch(e) { return send(res,e.code||400,{error:'Invalid webhook body.'}); }
+  const signature=String(req.headers['x-paystack-signature']||'');
+  const expected=crypto.createHmac('sha512',CFG.paystackSecret).update(raw).digest('hex');
+  if(!signature || !safeEq(signature,expected)) return send(res,401,{error:'Invalid Paystack signature.'});
+  let event; try { event=JSON.parse(raw.toString('utf8')); } catch(e) { return send(res,400,{error:'Invalid JSON.'}); }
+  if(event.event!=='charge.success') return send(res,200,{received:true,ignored:true});
+  const d=event.data||{}, reference=clip(d.reference,100), email=clip(d.customer&&d.customer.email,200).trim();
+  if(!reference || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !Number.isFinite(Number(d.amount))) return send(res,400,{error:'Payment event is missing receipt details.'});
+  const key=crypto.createHash('sha256').update(reference).digest('hex');
+  try {
+    const claimed=await claimEmail('receipt',key);
+    if(!claimed) return send(res,200,{received:true,duplicate:true});
+    const customerName=clip((d.metadata&&d.metadata.customer_name)||(d.customer&&d.customer.first_name)||'',80);
+    const product=clip((d.metadata&&d.metadata.product_name)||'Pelex',100);
+    await sendEmail({to:email,...receiptMail({name:customerName,reference,amount:d.amount,currency:d.currency,product})});
+    return send(res,200,{received:true,receipt_sent:true});
+  } catch(e) {
+    log('Paystack receipt failed:',e.message);
+    return send(res,502,{error:'Receipt delivery failed; inspect server logs before retrying.'});
+  }
+}
+async function handleProductUpdate(req,res) {
+  if(!CFG.hookSecret || !safeEq(req.headers['x-pelex-hook']||'',CFG.hookSecret)) return send(res,403,{error:'Forbidden.'});
+  if(!allow('product-mail:'+ipOf(req),20,60000)) return send(res,429,{error:'Too many requests.'});
+  let body; try { body=await readBody(req,30000); } catch(e) { return send(res,e.code||400,{error:'Bad request.'}); }
+  const to=clip(body.to,200).trim(), subject=clip(body.subject,160).trim(), message=clip(body.message,10000).trim();
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)||!subject||!message) return send(res,400,{error:'Provide one valid recipient, subject and message.'});
+  try {
+    await sendEmail({to,subject,html:`<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;padding:24px;color:#14213d"><h2>Pelex update</h2><p>${esc(message).replace(/\n/g,'<br>')}</p><p style="font-size:12px;color:#667085">This is an automated message. Replies are not monitored.</p></div>`,text:message+'\n\nThis is an automated message. Replies are not monitored.',from:CFG.emailNoReplyFrom});
+    return send(res,200,{sent:true});
+  } catch(e) { log('product update email failed:',e.message); return send(res,502,{error:'Email could not be sent.'}); }
+}
 
 /* ---------------- speech to text (microphone): Groq Whisper, same login rules as chat ---------------- */
 async function handleStt(req, res) {
@@ -885,6 +954,8 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, COMMANDS.list(q));
     }
     if (req.method === 'POST' && path === '/hooks/user-created') return await handleUserCreated(req, res);
+    if (req.method === 'POST' && path === '/hooks/paystack') return await handlePaystackWebhook(req, res);
+    if (req.method === 'POST' && path === '/emails/product-update') return await handleProductUpdate(req, res);
     if (req.method === 'POST' && path === '/voice/stt') { if (!edgeOk(req)) return send(res, 403, { error: 'Forbidden.' }); if (CFG.requireAuth && !originOk(req)) return send(res, 403, { error: 'This address only works from the Pelex site.' }); return await handleStt(req, res); }
     const guarded = path === '/chat' || path === '/chat/stream' || path === '/auth/guest' || path === '/';
     if (guarded && req.method === 'POST') {
