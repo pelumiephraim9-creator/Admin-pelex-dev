@@ -87,25 +87,58 @@ setInterval(() => { const now = Date.now(); for (const [k, b] of buckets) if (no
 /* ---------------- Supabase memory (REST, service key stays on the server) ---------------- */
 const sbOn = () => !!(CFG.sbUrl && CFG.sbKey);
 const sbHead = () => ({ apikey: CFG.sbKey, Authorization: 'Bearer ' + CFG.sbKey, 'Content-Type': 'application/json' });
-async function loadHistory(sid) {
-  if (!sbOn()) return [];
+const VALID_AGENTS = new Set(['personal', 'business', 'general', 'pitch', 'mailbot']);
+function cleanAgentId(value) {
+  const id = String(value || 'general').toLowerCase().trim();
+  return VALID_AGENTS.has(id) ? id : 'general';
+}
+
+async function loadHistory({ sid, userId, agentId }) {
+  // Private account memory is only available for verified signed-in users.
+  if (!sbOn() || !userId) return [];
   try {
-    const u = `${CFG.sbUrl}/rest/v1/public_agent_messages?select=role,content&session_id=eq.${encodeURIComponent(sid)}&order=id.desc&limit=${CFG.historyLimit}`;
+    const params = new URLSearchParams({
+      select: 'role,content',
+      user_id: `eq.${userId}`,
+      agent_id: `eq.${cleanAgentId(agentId)}`,
+      session_id: `eq.${sid}`,
+      order: 'id.desc',
+      limit: String(CFG.historyLimit)
+    });
     const t = withTimeout(6000);
-    const r = await fetch(u, { headers: sbHead(), signal: t.signal }); t.done();
+    let r;
+    try {
+      r = await fetch(`${CFG.sbUrl}/rest/v1/public_agent_messages?${params.toString()}`, {
+        headers: sbHead(), signal: t.signal
+      });
+    } finally { t.done(); }
     if (!r.ok) throw new Error('memory read ' + r.status);
     const rows = await r.json();
-    return rows.reverse().filter(m => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string');
+    return rows.reverse().filter(m =>
+      (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string'
+    );
   } catch (e) { log('memory read failed:', e.message); return []; }
 }
-async function saveTurn(sid, userText, answer) {
-  if (!sbOn()) return;
+
+async function saveTurn({ sid, userId, agentId, userText, answer }) {
+  // Do not save guest messages as private account memory.
+  if (!sbOn() || !userId) return;
   try {
+    const agent = cleanAgentId(agentId);
+    const messages = [
+      { user_id: userId, agent_id: agent, session_id: sid, role: 'user', content: userText },
+      { user_id: userId, agent_id: agent, session_id: sid, role: 'assistant', content: answer }
+    ];
     const t = withTimeout(6000);
-    const r = await fetch(`${CFG.sbUrl}/rest/v1/public_agent_messages`, {
-      method: 'POST', headers: { ...sbHead(), Prefer: 'return=minimal' }, signal: t.signal,
-      body: JSON.stringify([{ session_id: sid, role: 'user', content: userText }, { session_id: sid, role: 'assistant', content: answer }]),
-    }); t.done();
+    let r;
+    try {
+      r = await fetch(`${CFG.sbUrl}/rest/v1/public_agent_messages`, {
+        method: 'POST',
+        headers: { ...sbHead(), Prefer: 'return=minimal' },
+        signal: t.signal,
+        body: JSON.stringify(messages)
+      });
+    } finally { t.done(); }
     if (!r.ok) throw new Error('memory write ' + r.status);
   } catch (e) { log('memory write failed:', e.message); }
 }
@@ -532,10 +565,10 @@ async function callLLM(messages, withTools, opt) {
 /* ---------------- the agent loop ---------------- */
 const classify = (t, img) => img ? 'vision' : looksLikeCode(t) ? 'coding' : /\b(csv|json|spreadsheet|excel|dataset|statistic|average|median|correlation|forecast|analy[sz]e|analysis|chart|graph|pivot|percentage|budget)\b/i.test(t) ? 'data' : 'general';
 const looksLikeCode = t => /```|\b(code|function|bug|debug|script|html|css|javascript|typescript|python|react|node|sql|api|regex|stack ?trace|compile|syntax|django|flask|php|java|c\+\+|rust|golang)\b/i.test(String(t || ''));
-async function runAgent({ sid, text, meta, onStep, images, privacy }) {
+async function runAgent({ sid, text, meta, onStep, images, privacy, userId, agentId = 'general' }) {
   text = redact(text);   // privacy gateway
   const started = Date.now();
-  const history = await loadHistory(sid);
+  const history = await loadHistory({ sid, userId, agentId });
   const imgs = Array.isArray(images) ? images : [];
   const task = classify(text, imgs.length > 0), opt = { task, privacy: privacy || 'public' };
   const userMsg = imgs.length ? { role: 'user', content: [{ type: 'text', text }, ...imgs.map(u => ({ type: 'image_url', image_url: { url: u } }))] } : { role: 'user', content: text };
@@ -558,7 +591,7 @@ async function runAgent({ sid, text, meta, onStep, images, privacy }) {
   }
   if (!answer) answer = 'I could not finish that one. Please try again in a moment.';
   for (const md of run.attachments) if (!answer.includes(md)) answer += '\n\n' + md;   // pictures and download links always reach the chat
-  await saveTurn(sid, imgs.length ? text + ` [${imgs.length} image${imgs.length > 1 ? 's' : ''} attached]` : text, answer);
+  await saveTurn({ sid, userId, agentId, userText: imgs.length ? text + ` [${imgs.length} image${imgs.length > 1 ? 's' : ''} attached]` : text, answer });
   return { output: answer, steps };
 }
 
@@ -651,13 +684,14 @@ async function handleChat(req, res, stream) {
   if (!text) return send(res, 400, { error: 'Empty message.' });
   if (images.reduce((n, u) => n + u.length, 0) > 5500000) return send(res, 413, { error: 'The images are too large. Try fewer or smaller images.' });
   const sid = cleanSid(body.sessionId);
+  const agentId = 'general'; // Other agents remain disabled until their registry and permissions are connected.
   if (!allow('sid:' + sid, 15, 60000)) return send(res, 429, { error: 'Too many messages in this chat. Wait a moment.' });
   if (!allow('day:' + ip, 600, 86400000)) return send(res, 429, { error: 'Daily limit reached. Please come back tomorrow.' });
   const meta = Object.assign({}, body.metadata && typeof body.metadata === 'object' ? body.metadata : {});
   delete meta.accessToken; delete meta.userId; delete meta.images; if (who && who.uid) meta.userId = who.uid;   // identity comes from the verified login, never from the message
 
   if (!stream) {
-    try { const r = await runAgent({ sid, text, meta, images }); return send(res, 200, r); }
+    try { const r = await runAgent({ sid, text, meta, images, userId: who && who.uid, agentId }); return send(res, 200, r); }
     catch (e) { log('agent failed:', e.message); return send(res, 502, { error: 'The agent could not reply right now.' }); }
   }
   res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
@@ -665,7 +699,7 @@ async function handleChat(req, res, stream) {
   const beat = setInterval(() => { try { res.write(': keep-alive\n\n'); } catch (e) {} }, 15000);
   req.on('close', () => clearInterval(beat));
   try {
-    const r = await runAgent({ sid, text, meta, images, onStep: s => ev('step', { label: s }) });
+    const r = await runAgent({ sid, text, meta, images, userId: who && who.uid, agentId, onStep: s => ev('step', { label: s }) });
     ev('text', { output: r.output }); ev('done', { steps: r.steps });
   } catch (e) { log('agent failed:', e.message); ev('error', { error: 'The agent could not reply right now.' }); }
   clearInterval(beat); res.end();
