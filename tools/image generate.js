@@ -1,47 +1,42 @@
 'use strict';
-// Makes a picture from a text description, saves it for 2 days, and returns it so the chat can show it.
-// Cloudflare FLUX is tried first (set CF_ACCOUNT_ID and CF_API_TOKEN in Render). If that is missing or fails,
-// the free Pollinations service is used as backup (slower, may be throttled).
+// Finds real pictures on the web (Tavily, or Serper if that is all you have) so the agent does not have to generate common things from scratch.
+// Needs TAVILY_API_KEY or SERPER_API_KEY. The pictures are shown with their sources.
 const E = process.env;
-const CF = () => E.CF_API_BASE || 'https://api.cloudflare.com/client/v4';
-const POLL = () => E.POLLINATIONS_BASE || 'https://image.pollinations.ai';
+const okUrl = u => { try { const x = new URL(u); return x.protocol === 'https:' && !x.username && x.hostname.includes('.') && u.length < 600; } catch (e) { return false; } };
+const host = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return 'web'; } };
+const alt = t => String(t || 'Picture').replace(/[\[\]()\r\n]+/g, ' ').trim().slice(0, 80) || 'Picture';
 
-async function viaCloudflare(prompt, ctx) {
-  const t = ctx.withTimeout(60000);
-  let r;
-  try {
-    r = await fetch(`${CF()}/accounts/${E.CF_ACCOUNT_ID}/ai/run/@cf/black-forest-labs/flux-1-schnell`, { method: 'POST', signal: t.signal, headers: { Authorization: 'Bearer ' + E.CF_API_TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, steps: 6 }) });
-  } finally { t.done(); }
-  const j = await r.json().catch(() => null);
-  if (!r.ok || !j || !j.result || !j.result.image) throw new Error('Cloudflare answered ' + r.status + (j && j.errors && j.errors[0] ? ': ' + ctx.clip(j.errors[0].message, 100) : ''));
-  return { bytes: Buffer.from(j.result.image, 'base64'), mime: 'image/jpeg', via: 'Cloudflare FLUX' };
-}
-async function viaPollinations(prompt, ctx) {
-  const t = ctx.withTimeout(70000);
-  let r;
-  try { r = await fetch(`${POLL()}/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&seed=${Math.floor(Math.random() * 1e6)}`, { signal: t.signal }); }
+async function viaTavily(q, ctx) {
+  const t = ctx.withTimeout(15000); let r;
+  try { r = await fetch((E.TAVILY_BASE || 'https://api.tavily.com') + '/search', { method: 'POST', signal: t.signal, headers: { Authorization: 'Bearer ' + E.TAVILY_API_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q, search_depth: 'basic', max_results: 5, include_images: true, include_image_descriptions: true, include_answer: false }) }); }
   finally { t.done(); }
-  const mime = (r.headers.get('content-type') || '').split(';')[0];
-  if (!r.ok || !/^image\//.test(mime)) throw new Error('Pollinations answered ' + r.status);
-  return { bytes: Buffer.from(await r.arrayBuffer()), mime, via: 'Pollinations' };
+  if (!r.ok) throw new Error('Tavily answered ' + r.status);
+  const j = await r.json();
+  return (j.images || []).map(x => typeof x === 'string' ? { url: x, title: '' } : { url: x.url, title: x.description || '' });
 }
-
+async function viaSerper(q, ctx) {
+  const t = ctx.withTimeout(15000); let r;
+  try { r = await fetch(E.SERPER_IMAGES_URL || 'https://google.serper.dev/images', { method: 'POST', signal: t.signal, headers: { 'X-API-KEY': E.SERPER_API_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ q, num: 8 }) }); }
+  finally { t.done(); }
+  if (!r.ok) throw new Error('Serper answered ' + r.status);
+  const j = await r.json();
+  return (j.images || []).map(x => ({ url: x.imageUrl, title: x.title || '', page: x.link }));
+}
 module.exports = {
-  name: 'image_generate',
-  description: 'Create a picture from a text description. Use when the person asks to draw, design, generate or make an image, logo, poster or illustration. Write the prompt in English with clear detail: subject, style, colours, mood.',
-  parameters: { type: 'object', properties: { prompt: { type: 'string', description: 'Detailed English description of the image' } }, required: ['prompt'] },
-  label: a => 'Creating an image: ' + String(a.prompt || '').slice(0, 40),
-  run: async ({ prompt }, ctx) => {
-    const p = ctx.clip(String(prompt || '').trim(), 600);
-    if (p.length < 3) throw new Error('Describe the image you want.');
-    const errors = []; let img = null;
-    if (E.CF_ACCOUNT_ID && E.CF_API_TOKEN) { try { img = await viaCloudflare(p, ctx); } catch (e) { errors.push(e.message); ctx.log('image: cloudflare failed:', e.message); } }
-    else errors.push('Cloudflare is not set up (CF_ACCOUNT_ID or CF_API_TOKEN missing)');
-    if (!img) { try { img = await viaPollinations(p, ctx); } catch (e) { errors.push(e.message); ctx.log('image: pollinations failed:', e.message); } }
-    if (!img) throw new Error('Both image services failed right now. Reasons: ' + errors.join(' | ') + '.');
-    const ext = img.mime === 'image/png' ? 'png' : img.mime === 'image/webp' ? 'webp' : 'jpg';
-    const f = await ctx.saveFile({ name: 'pelex-image.' + ext, mime: img.mime, bytes: img.bytes, folder: 'images' });
-    const md = `![Generated image](${f.url})`;
-    return { text: `Image created (${img.via}) and kept for 2 days. It will be shown to the person automatically. Do not describe a link; just say it is ready.`, markdown: md };
+  name: 'find_images',
+  description: 'Search the web for real pictures of something and show them with their sources. Use FIRST for common things (an Instagram ad layout, a dashboard interface, a landmark, a product, a flag, a diagram). Only use image_generate if the person wants something custom or nothing suitable is found.',
+  parameters: { type: 'object', properties: { query: { type: 'string', description: 'What to look for, in plain words' } }, required: ['query'] },
+  enabled: () => !!(E.TAVILY_API_KEY || E.SERPER_API_KEY),
+  label: a => 'Looking for pictures of ' + String(a.query || '').slice(0, 40),
+  run: async ({ query }, ctx) => {
+    const q = ctx.clip(String(query || '').trim(), 150); if (q.length < 3) throw new Error('Tell me what to look for.');
+    let found = [], errs = [];
+    if (E.TAVILY_API_KEY) { try { found = await viaTavily(q, ctx); } catch (e) { errs.push(e.message); } }
+    if (!found.length && E.SERPER_API_KEY) { try { found = await viaSerper(q, ctx); } catch (e) { errs.push(e.message); } }
+    const seen = new Set(), pics = [];
+    for (const x of found) { if (!x || !okUrl(x.url) || seen.has(x.url)) continue; seen.add(x.url); pics.push(x); if (pics.length >= 4) break; }
+    if (!pics.length) return 'No suitable pictures were found' + (errs.length ? ' (' + errs.join('; ') + ')' : '') + '. If the person still wants a picture, use image_generate.';
+    const md = pics.map(x => `![${alt(x.title || q)}](${x.url})\n*Source: ${host(x.page || x.url)}*`).join('\n\n') + '\n\n*Pictures come from the web. Check the source before reusing them.*';
+    return { text: `Found ${pics.length} picture(s) for "${q}" from ${pics.map(x => host(x.page || x.url)).join(', ')}. They are shown to the person automatically with their sources. Say what they show in one or two sentences and name the sources.`, markdown: md };
   },
 };
