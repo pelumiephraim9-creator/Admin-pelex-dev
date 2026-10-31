@@ -697,6 +697,41 @@ details.actlog summary::before{content:"\25B8 "}details.actlog[open] summary::be
 #toBottom[hidden]{display:none}
 .badge[hidden]{display:none}
 .oauthbtn[hidden],#pkCard[hidden]{display:none}
+
+/* Pelex refinement: calm navy visual system, lighter type and responsive project workspace */
+:root{--bg:#f5f7fb;--panel:#fff;--ink:#17243b;--muted:#68758c;--line:#e3e8f1;--soft:#f0f3f8;--btn:#142b52;--btnink:#fff;--teal:#c5d3e8}
+:root[data-theme="dark"]{--bg:#0c1423;--panel:#121e31;--ink:#e8eef8;--muted:#a1aec2;--line:#26364d;--soft:#17263d;--btn:#203b65;--btnink:#fff;--teal:#536d93}
+body{font-size:14.5px;line-height:1.55;letter-spacing:0}
+h1,h2,h3,h4{letter-spacing:-.025em;font-weight:650}
+h1{font-size:clamp(25px,3vw,32px);line-height:1.2}
+h2{font-size:19px;font-weight:620}
+strong,b{font-weight:600}
+.btn{background:var(--btn);color:var(--btnink);border-radius:10px;font-weight:550;box-shadow:none}
+.btn.alt{background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+.inp,input,textarea,select{border-radius:10px}
+.card{border-radius:16px;padding:20px;gap:10px;box-shadow:0 3px 14px rgba(19,39,72,.035)}
+.grid#projectsGrid{grid-template-columns:repeat(auto-fill,minmax(min(100%,285px),1fr));gap:18px;margin-top:22px;align-items:stretch}
+#projectsGrid .project-card{min-height:245px;border:1px solid var(--line);background:var(--panel);padding:22px;gap:14px;transition:transform .18s,border-color .18s,box-shadow .18s}
+#projectsGrid .project-card:hover{transform:translateY(-2px);border-color:#9aacc8;box-shadow:0 12px 28px rgba(19,39,72,.08)}
+.project-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.project-mark{width:38px;height:38px;border-radius:12px;background:#eaf0f8;color:#142b52;display:grid;place-items:center;font-weight:700;font-size:15px;flex:none}
+:root[data-theme="dark"] .project-mark{background:#243957;color:#e8eef8}
+.project-name{font-size:16px;font-weight:620;line-height:1.35;overflow-wrap:anywhere}
+.project-description{font-size:13px;color:var(--muted);line-height:1.6;min-height:40px}
+.project-meta{display:flex;gap:8px;flex-wrap:wrap;color:var(--muted);font-size:12px}
+.project-meta span{background:var(--soft);border-radius:99px;padding:4px 9px}
+.project-chats{display:flex;flex-direction:column;gap:6px}
+.project-chats .plink{width:100%;text-align:left;border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:var(--bg);font-size:12.5px;color:var(--ink)}
+.project-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto;padding-top:8px}
+.project-actions button{min-height:38px}
+.project-modal-backdrop{position:fixed;inset:0;z-index:150;background:rgba(8,18,35,.48);display:grid;place-items:center;padding:18px}
+.project-modal{width:min(100%,540px);max-height:min(90dvh,760px);overflow:auto;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:18px;padding:24px;box-shadow:0 24px 70px rgba(8,18,35,.24)}
+.project-modal h2{margin:0 0 5px}.project-modal .field{display:grid;gap:6px;margin-top:15px}.project-modal label{font-size:12.5px;font-weight:600;color:var(--muted)}.project-modal input,.project-modal textarea,.project-modal select{width:100%;border:1px solid var(--line);background:var(--bg);padding:11px 12px;outline:none}.project-modal textarea{min-height:112px;resize:vertical}.project-modal input:focus,.project-modal textarea:focus{border-color:#6f87ad;box-shadow:0 0 0 3px rgba(20,43,82,.1)}
+.project-modal-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:22px;flex-wrap:wrap}
+#projectsEmpty{padding:24px;border:1px dashed var(--line);border-radius:14px;background:var(--panel)}
+@media(max-width:700px){#v-projects .wrap{padding-left:16px;padding-right:16px}#projectsGrid{grid-template-columns:1fr;gap:13px}#projectsGrid .project-card{min-height:0;padding:18px}.project-modal{padding:19px;border-radius:16px}.project-modal-actions button{flex:1}}
+@media(prefers-reduced-motion:reduce){#projectsGrid .project-card{transition:none}}
+
 </style>
 </head>
 <body>
@@ -2034,38 +2069,56 @@ async function delChat(id){
 async function loadProjects(){
   var g=$('projectsGrid'),em=$('projectsEmpty');
   if(!dbOk()){g.innerHTML='';em.hidden=false;em.textContent='Sign in to create projects and keep related chats together.';return}
-  var pr=await sb.from('projects').select('id,name,description').order('created_at',{ascending:false});
+  var pr=await sb.from('projects').select('id,name,description,created_at').order('created_at',{ascending:false});
   if(pr.error){pr=await sb.from('projects').select('id,name').order('created_at',{ascending:false})}
   var cr=await sb.from('chats').select('id,title,project_id,updated_at').not('project_id','is',null).order('updated_at',{ascending:false});
   if(pr.error){chatFail('projects could not be loaded',pr.error);return}
   var list=pr.data||[],chats=cr.data||[];
-  g.innerHTML='';em.hidden=list.length>0;em.textContent='No projects yet. Start one to keep related chats together.';
+  g.innerHTML='';em.hidden=list.length>0;em.textContent='No projects yet. Create your first workspace to organise related chats, files and work.';
   list.forEach(function(p){
-    var c=document.createElement('div');c.className='card';
-    var h=document.createElement('strong');h.textContent=p.name;c.appendChild(h);
-    if(p.description){var ds=document.createElement('span');ds.className='muted';ds.textContent=p.description;c.appendChild(ds)}
     var mine=chats.filter(function(x){return x.project_id===p.id});
-    if(!mine.length){var e=document.createElement('span');e.className='muted';e.textContent='No chats yet.';c.appendChild(e)}
-    mine.slice(0,6).forEach(function(ch){var a=document.createElement('button');a.className='plink';a.textContent=ch.title;a.onclick=function(){openChat(ch.id)};c.appendChild(a)});
-    var row=document.createElement('div');row.className='prow';
-    var nb=document.createElement('button');nb.className='btn alt';nb.textContent='New chat here';nb.onclick=function(){newChat(p.id);go('chat');input.focus()};
+    var c=document.createElement('article');c.className='card project-card';
+    var head=document.createElement('div');head.className='project-head';
+    var mark=document.createElement('span');mark.className='project-mark';mark.textContent=(p.name||'P').trim().charAt(0).toUpperCase();
+    var titleWrap=document.createElement('div');titleWrap.style.flex='1';titleWrap.style.minWidth='0';
+    var h=document.createElement('div');h.className='project-name';h.textContent=p.name;
+    var sub=document.createElement('div');sub.className='project-meta';var count=document.createElement('span');count.textContent=mine.length+' '+(mine.length===1?'conversation':'conversations');sub.appendChild(count);
+    titleWrap.appendChild(h);titleWrap.appendChild(sub);head.appendChild(mark);head.appendChild(titleWrap);c.appendChild(head);
+    var ds=document.createElement('div');ds.className='project-description';ds.textContent=p.description||'No project description yet. Add context to make this workspace easier to understand.';c.appendChild(ds);
+    var chatsBox=document.createElement('div');chatsBox.className='project-chats';
+    if(!mine.length){var empty=document.createElement('span');empty.className='muted';empty.textContent='No conversations in this project yet.';chatsBox.appendChild(empty)}
+    mine.slice(0,3).forEach(function(ch){var a=document.createElement('button');a.className='plink';a.textContent=ch.title||'Untitled conversation';a.onclick=function(){openChat(ch.id)};chatsBox.appendChild(a)});
+    c.appendChild(chatsBox);
+    var row=document.createElement('div');row.className='project-actions';
+    var nb=document.createElement('button');nb.className='btn';nb.textContent='Open project';nb.onclick=function(){newChat(p.id);go('chat');input.focus()};
     var db=document.createElement('button');db.className='btn alt';db.textContent='Delete';db.onclick=function(){delProject(p)};
-    row.appendChild(nb);row.appendChild(db);c.appendChild(row);g.appendChild(c)})
+    row.appendChild(nb);row.appendChild(db);c.appendChild(row);g.appendChild(c)
+  })
 }
 async function delProject(p){
   if(!dbOk()||!confirm('Delete the project "'+p.name+'"? Its chats are kept.'))return;
   var r=await sb.from('projects').delete().eq('id',p.id);
   if(!r.error){if(curProjectId===p.id)curProjectId=null;loadProjects();loadRecents()}
 }
-$('newProjectBtn').onclick=async function(){
+$('newProjectBtn').onclick=function(){
   if(!dbOk()){setAuthMode('in');go('signin');return}
-  var n=prompt('Name your project');if(!n||!n.trim())return;
-  var d=prompt('What is this project about? (optional, for example: my fashion business plan)')||'';
-  var row={name:n.trim().slice(0,60)};if(d.trim())row.description=d.trim().slice(0,400);
-  var r=await sb.from('projects').insert(row);
-  if(r.error&&row.description){delete row.description;r=await sb.from('projects').insert(row)}
-  if(r.error){chatFail('project could not be saved',r.error);return}
-  loadProjects();
+  if($('projectModal'))return;
+  var back=document.createElement('div');back.id='projectModal';back.className='project-modal-backdrop';
+  back.innerHTML='<form class="project-modal" id="projectCreateForm"><h2>Create a project</h2><div class="muted">Give this workspace a clear name and useful context.</div><div class="field"><label for="projectName">Project title *</label><input id="projectName" name="name" maxlength="60" required placeholder="e.g. Pelex mobile app launch"></div><div class="field"><label for="projectDescription">Project description</label><textarea id="projectDescription" name="description" maxlength="400" placeholder="What are you building? Include the goal, audience, key tasks or expected outcome."></textarea></div><div class="project-modal-actions"><button class="btn alt" type="button" id="projectCancel">Cancel</button><button class="btn" type="submit" id="projectSave">Create project</button></div><div class="muted" id="projectFormMsg" role="status" style="margin-top:8px"></div></form>';
+  document.body.appendChild(back);
+  $('projectName').focus();
+  $('projectCancel').onclick=function(){back.remove()};
+  back.addEventListener('click',function(e){if(e.target===back)back.remove()});
+  $('projectCreateForm').onsubmit=async function(e){
+    e.preventDefault();var n=$('projectName').value.trim(),d=$('projectDescription').value.trim();
+    if(!n){$('projectName').focus();return}
+    var save=$('projectSave');save.disabled=true;save.textContent='Creating…';
+    var row={name:n.slice(0,60)};if(d)row.description=d.slice(0,400);
+    var r=await sb.from('projects').insert(row);
+    if(r.error&&row.description){delete row.description;r=await sb.from('projects').insert(row)}
+    if(r.error){$('projectFormMsg').textContent='Could not save this project: '+(r.error.message||'Please try again.');save.disabled=false;save.textContent='Create project';return}
+    back.remove();await loadProjects()
+  }
 };
 
 // ---- Scheduled board ----
