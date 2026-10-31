@@ -33,7 +33,12 @@ const http = require('http');
 const dns = require('dns').promises;
 const net = require('net');
 const crypto = require('crypto');
-let COMMANDS = null; try { COMMANDS = require('./commands.js'); } catch (e) { console.log('slash commands not loaded:', e.message); }
+let COMMANDS = null;
+for (const candidate of ['./commands.js', './command.js']) {
+  try { COMMANDS = require(candidate); break; }
+  catch (e) { if (e.code !== 'MODULE_NOT_FOUND' || !String(e.message).includes(candidate)) { console.log('slash commands not loaded:', e.message); break; } }
+}
+if (!COMMANDS) console.log('slash commands not loaded: neither commands.js nor command.js exists');
 
 const ENV = process.env;
 const CFG = {
@@ -808,6 +813,29 @@ async function handleChat(req, res, stream) {
     ev('text', slash && slash.command ? { output: r.output, command: slash.command } : { output: r.output }); ev('done', { steps: r.steps });
   } catch (e) { log('agent failed:', e.message); ev('error', { error: 'The agent could not reply right now.' }); }
   clearInterval(beat); res.end();
+}
+
+/* ---------------- startup health checks ----------------
+   These checks are intentionally non-fatal: a missing optional table/bucket
+   must never prevent the HTTP server from starting. */
+async function memoryStatus() {
+  if (!sbOn()) return 'not_configured';
+  try {
+    const r = await sbFetch('/rest/v1/public_agent_messages?select=id&limit=1');
+    if (r.ok) return 'ready';
+    if (r.status === 404) return 'missing';
+    log('memory status check returned:', r.status);
+    return 'unknown';
+  } catch (e) { log('memory status check failed:', e.message); return 'unknown'; }
+}
+async function mediaStatus() {
+  if (!sbOn()) return 'not_configured';
+  try {
+    const r = await sbFetch('/storage/v1/bucket');
+    if (!r.ok) { log('media status check returned:', r.status); return r.status === 404 ? 'missing' : 'unknown'; }
+    const buckets = await r.json();
+    return Array.isArray(buckets) && buckets.some(b => b && b.name === BUCKET) ? 'ready' : 'missing';
+  } catch (e) { log('media status check failed:', e.message); return 'unknown'; }
 }
 
 function imageReady() { const t = EXT.get('image_generate'); try { return !!(t && t.route().some(id => t.providers[id].ready())); } catch (e) { return false; } }
