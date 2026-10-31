@@ -19,3 +19,14 @@ select column_name, data_type
 from information_schema.columns
 where table_schema='public' and table_name='email_log'
 order by ordinal_position;
+
+ 
+-- Paystack receipt idempotency. Separate table because Paystack references
+-- are strings, not Supabase Auth user UUIDs.
+create table if not exists public.payment_receipts (
+  reference text primary key,
+  created_at timestamptz not null default now()
+);
+alter table public.payment_receipts enable row level security;
+revoke all on public.payment_receipts from anon, authenticated;
+create index if not exists payment_receipts_created_at_idx on public.payment_receipts(created_at desc);
