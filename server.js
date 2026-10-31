@@ -12,7 +12,7 @@
     GROQ_MODEL           optional   default: llama-3.3-70b-versatile
     SUPABASE_URL         required   https://xxxx.supabase.co
     SUPABASE_SERVICE_KEY required   service role key (memory table is not readable by the public)
-    RESEND_API_KEY       for emails   Resend key; HOOK_SECRET protects /hooks/user-created; EMAIL_FROM default 'Pelex <hello@pelex.tech>'
+    LOCKALLY_API_KEY     for emails   Lockally send:write token; HOOK_SECRET protects email webhooks; EMAIL_FROM must be on a verified domain
     GEMINI_API_KEY       optional   Google AI Studio key (free tier), used for coding, pictures and big documents
     SUPABASE_ANON_KEY    advised    the public (anon / publishable) key, used only to check logins
     SERPER_API_KEY       optional   turns on the web_search tool
@@ -70,7 +70,7 @@ const CFG = {
   userDaily: +ENV.USER_DAILY || 300,                       // messages per signed-in person per day
   allowLocalhost: ENV.ALLOW_LOCALHOST === '1',
   sttModel: ENV.STT_MODEL || 'whisper-large-v3-turbo',
-  hookSecret: ENV.HOOK_SECRET || '', resendKey: ENV.RESEND_API_KEY || '', resendUrl: ENV.RESEND_BASE || 'https://api.resend.com', emailFrom: ENV.EMAIL_FROM || 'Pelex <hello@pelex.tech>', emailNoReplyFrom: ENV.EMAIL_NOREPLY_FROM || ENV.EMAIL_FROM || 'Pelex <hello@pelex.tech>', paystackSecret: ENV.PAYSTACK_SECRET_KEY || '', siteUrl: ENV.SITE_URL || 'https://pelex.tech',
+  hookSecret: ENV.HOOK_SECRET || '', lockallyKey: ENV.LOCKALLY_API_KEY || '', lockallyUrl: ENV.LOCKALLY_API_URL || 'https://api.lockally.com/v1', emailFrom: ENV.EMAIL_FROM || 'Pelex <hello@pelex.tech>', emailNoReplyFrom: ENV.EMAIL_NOREPLY_FROM || ENV.EMAIL_FROM || 'Pelex <hello@pelex.tech>', paystackSecret: ENV.PAYSTACK_SECRET_KEY || '', siteUrl: ENV.SITE_URL || 'https://pelex.tech',
   maxInput: 4000,
   historyLimit: 40,
   maxToolRounds: 4,
@@ -694,14 +694,28 @@ async function handleGuest(req, res) {
 }
 
 
-/* ---------------- emails (Resend). Sign-in codes and password resets go through Supabase Auth SMTP; this sends the welcome email ---------------- */
+/* ---------------- emails (Lockally). Supabase Auth SMTP remains separate for sign-in codes and password resets. ---------------- */
 const esc = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-async function sendEmail({ to, subject, html, text, from }) {
-  if (!CFG.resendKey) throw new Error('Email is not set up (RESEND_API_KEY missing).');
-  const t = withTimeout(12000); let r;
-  try { r = await fetch(CFG.resendUrl + '/emails', { method: 'POST', signal: t.signal, headers: { Authorization: 'Bearer ' + CFG.resendKey, 'Content-Type': 'application/json' }, body: JSON.stringify({ from: from || CFG.emailFrom, to: [to], subject, html, text }) }); }
-  finally { t.done(); }
-  if (!r.ok) throw new Error('The email service answered ' + r.status + ': ' + clip(await r.text().catch(() => ''), 140));
+async function sendEmail({ to, subject, html, text, from, idempotencyKey }) {
+  if (!CFG.lockallyKey) throw new Error('Email is not set up (LOCKALLY_API_KEY missing).');
+  const recipient = clip(to, 200).trim();
+  if (!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(recipient)) throw new Error('A valid email recipient is required.');
+  const payload = { from: from || CFG.emailFrom, to: [recipient], subject: clip(subject, 180), html: String(html || ''), text: String(text || '') };
+  if (!payload.html && !payload.text) throw new Error('Email content is empty.');
+  const stableKey = clip(idempotencyKey || ('pelex-' + crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex')), 255);
+  const t = withTimeout(15000); let r;
+  try {
+    r = await fetch(CFG.lockallyUrl.replace(/\\/+$/, '') + '/send', {
+      method: 'POST', signal: t.signal,
+      headers: { Authorization: 'Bearer ' + CFG.lockallyKey, 'Content-Type': 'application/json', 'Idempotency-Key': stableKey },
+      body: JSON.stringify(payload)
+    });
+    const responseText = await r.text().catch(() => '');
+    if (!r.ok) throw new Error('Lockally email API answered ' + r.status + ': ' + clip(responseText, 300));
+    let result = {}; try { result = responseText ? JSON.parse(responseText) : {}; } catch (e) {}
+    if (r.status !== 202 && result.status !== 'suppressed' && !r.ok) throw new Error('Lockally did not accept the email.');
+    return result;
+  } finally { t.done(); }
 }
 function welcomeMail(name) {
   const hi = name ? 'Hi ' + esc(name) + ',' : 'Hi,';
@@ -771,7 +785,7 @@ async function claimPaymentReceipt(reference) {
   return Array.isArray(rows) && rows.length>0;
 }
 async function handlePaystackWebhook(req,res) {
-  if(!CFG.paystackSecret || !CFG.resendKey || !sbOn()) return send(res,503,{error:'Payment email service is not configured.'});
+  if(!CFG.paystackSecret || !CFG.lockallyKey || !sbOn()) return send(res,503,{error:'Payment email service is not configured.'});
   let raw; try { raw=await readRaw(req,1000000); } catch(e) { return send(res,e.code||400,{error:'Invalid webhook body.'}); }
   const signature=String(req.headers['x-paystack-signature']||'');
   const expected=crypto.createHmac('sha512',CFG.paystackSecret).update(raw).digest('hex');
