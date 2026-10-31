@@ -763,10 +763,10 @@ function receiptMail({ name, reference, amount, currency, product }) {
     html: `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;padding:26px;color:#14213d"><div style="height:4px;background:#6495ED;border-radius:4px"></div><h2>Payment confirmed</h2><p>Hello ${safeName},</p><p>Your payment for <b>${safeProduct}</b> has been confirmed.</p><div style="background:#f3f6fc;padding:18px;border-radius:12px"><p><b>Amount:</b> ${esc(value)}</p><p><b>Reference:</b> ${safeRef}</p></div><p>Thank you for choosing Pelex.</p><p style="color:#667085;font-size:12px">This receipt confirms the successful Paystack transaction.</p></div>`
   };
 }
-async function claimEmail(kind, key) {
+async function claimPaymentReceipt(reference) {
   if (!sbOn()) throw new Error('Supabase service connection is not configured.');
-  const r=await fetch(CFG.sbUrl+'/rest/v1/email_log',{method:'POST',headers:{...sbHead(),Prefer:'resolution=ignore-duplicates,return=representation'},body:JSON.stringify({user_id:key,kind})});
-  if(!r.ok) throw new Error('Could not claim email delivery record ('+r.status+').');
+  const r=await fetch(CFG.sbUrl+'/rest/v1/payment_receipts',{method:'POST',headers:{...sbHead(),Prefer:'resolution=ignore-duplicates,return=representation'},body:JSON.stringify({reference})});
+  if(!r.ok) throw new Error('Could not claim receipt record ('+r.status+').');
   const rows=await r.json().catch(()=>[]);
   return Array.isArray(rows) && rows.length>0;
 }
@@ -780,9 +780,8 @@ async function handlePaystackWebhook(req,res) {
   if(event.event!=='charge.success') return send(res,200,{received:true,ignored:true});
   const d=event.data||{}, reference=clip(d.reference,100), email=clip(d.customer&&d.customer.email,200).trim();
   if(!reference || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !Number.isFinite(Number(d.amount))) return send(res,400,{error:'Payment event is missing receipt details.'});
-  const key=crypto.createHash('sha256').update(reference).digest('hex');
   try {
-    const claimed=await claimEmail('receipt',key);
+    const claimed=await claimPaymentReceipt(reference);
     if(!claimed) return send(res,200,{received:true,duplicate:true});
     const customerName=clip((d.metadata&&d.metadata.customer_name)||(d.customer&&d.customer.first_name)||'',80);
     const product=clip((d.metadata&&d.metadata.product_name)||'Pelex',100);
