@@ -32,7 +32,7 @@
 <style>
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1420;--panel:#171d2b;--ink:#eef1f8;--muted:#9aa6c4;--line:#2a3347;--soft:#1f2840;--sel:#232d47;--teal:#3a4f7d;color-scheme:dark}}
 :root[data-theme="dark"]{--bg:#0f1420;--panel:#171d2b;--ink:#eef1f8;--muted:#9aa6c4;--line:#2a3347;--soft:#1f2840;--sel:#232d47;--teal:#3a4f7d;color-scheme:dark}
-:root{--bg:#ffffff;--panel:#fff;--ink:#111111;--muted:#55617f;--line:#dfe4ee;--soft:#e8eefb;--btn:#6495ED;--btnink:#0b1b4a;--teal:#a9c4f5;--sel:#e3eafb;
+:root{--bg:#ffffff;--panel:#fff;--ink:#111111;--muted:#55617f;--line:#dfe4ee;--soft:#f5f7fb;--btn:#6495ED;--btnink:#0b1b4a;--teal:#a9c4f5;--sel:#eef2fb;
 box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
 body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:"Segoe UI",system-ui,-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.45}
@@ -676,6 +676,26 @@ button.gav{cursor:pointer}.gav.sm{width:38px;height:38px;font-size:21px}
 .bgate[hidden]{display:none}.bmsgs{display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto;padding:8px 2px}
 .bm{max-width:88%;padding:8px 12px;border-radius:14px;background:var(--soft);align-self:flex-start}.bm.me{align-self:flex-end;background:var(--btn);color:var(--btnink)}
 .supbar{display:flex;gap:8px;margin-top:10px}.supbar input{flex:1;min-width:0}
+body::before{content:"";position:fixed;top:0;left:0;right:0;height:3px;background:var(--btn);z-index:200;pointer-events:none}
+.msgactions{flex-wrap:wrap;gap:6px;margin-top:8px}
+.msgactions button{font-size:12.5px;padding:5px 11px;border:1px solid var(--line);border-radius:99px;background:var(--bg);color:var(--muted)}
+.msgactions button:hover{background:var(--soft);color:var(--ink)}
+.msg.me .msgactions{justify-content:flex-end}
+.act{font-size:13px;color:var(--muted);line-height:1.8}.actrow.now{color:var(--ink)}
+details.actlog{margin:0 0 8px;font-size:12.5px;color:var(--muted)}details.actlog summary{cursor:pointer;list-style:none}
+details.actlog summary::before{content:"\25B8 "}details.actlog[open] summary::before{content:"\25BE "}details.actlog div{padding:2px 0 0 14px}
+#v-business,#v-personal{background:var(--bg)}#v-business .card,#v-personal .card{background:var(--bg);border:1px solid var(--line);box-shadow:none}
+#slashMenu{position:fixed;z-index:90;max-height:42vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 30px rgba(10,20,60,.12);padding:6px}
+#slashMenu[hidden]{display:none}
+.sm-item{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;padding:9px 12px;border-radius:10px;cursor:pointer;font-size:14px;align-items:baseline}
+.sm-item b{color:var(--ink);font-weight:600}.sm-item span{color:var(--muted);font-size:13px}
+.sm-item em{grid-column:2;font-style:normal;font-size:11.5px;color:var(--muted)}
+.sm-item.on,.sm-item:hover{background:var(--soft)}.sm-item.off b{opacity:.55}
+.abanner{margin:0 0 14px;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:var(--soft);color:var(--muted);font-size:13.5px}
+.abanner[hidden]{display:none}
+#toBottom{position:fixed;left:50%;bottom:132px;transform:translateX(-50%);z-index:70;width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:var(--panel);color:var(--ink);box-shadow:0 6px 18px rgba(10,20,60,.16);cursor:pointer;display:flex;align-items:center;justify-content:center}
+#toBottom[hidden]{display:none}
+.badge[hidden]{display:none}
 .oauthbtn[hidden],#pkCard[hidden]{display:none}
 </style>
 </head>
@@ -696,6 +716,8 @@ setTimeout(out,rm?500:4600);setTimeout(out,6500);sp.addEventListener('click',out
 <button class="nav" data-go="scheduled"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Scheduled<span class="nbadge" id="schedBadge" hidden aria-label="New scheduled results"></span></button>
 <button class="nav" data-go="pitch"><svg viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-3-7z"/></svg>Pitch Agent</button>
 <button class="nav" data-go="groups"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.4 3-5 6-5s5.4 1.6 6 5"/><circle cx="17" cy="9" r="2.4"/><path d="M16.5 14.2c2.4.2 4 1.6 4.5 4.3"/></svg>Groups<span class="nbadge" id="gBadge" hidden aria-label="Groups with new messages"></span></button>
+<button class="nav" data-go="personal"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.8-4 3.6-6 7-6s6.2 2 7 6"/></svg>Personal Bot</button>
+<button class="nav" data-go="gmail"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>Gmail Bot</button>
 <button class="nav" data-go="business"><svg viewBox="0 0 24 24"><path d="M4 9l1-5h14l1 5M4 9h16v11H4zM9 20v-6h6v6"/></svg>Business Bot</button>
 <button class="nav" data-go="support" id="navSupport" hidden><svg viewBox="0 0 24 24"><path d="M4 13v-1a8 8 0 0 1 16 0v1M4 13h3v5H4zM17 13h3v5h-3zM17 18c0 2-2 3-5 3"/></svg>Support<span class="nbadge" id="supBadge" hidden></span></button>
 <button class="nav" data-go="ads"><svg viewBox="0 0 24 24"><path d="M3 11v3a1 1 0 0 0 1 1h2l8 4V6L6 10H4a1 1 0 0 0-1 1zM18 9a4 4 0 0 1 0 6"/></svg>Run ads <span class="badge soon">Soon</span></button>
@@ -735,7 +757,7 @@ setTimeout(out,rm?500:4600);setTimeout(out,6500);sp.addEventListener('click',out
 <div id="chat" aria-live="polite">
 <div class="chatbody">
 <h1 class="hello" id="hello">&nbsp;</h1>
-<div class="chips"><button class="chip-sugg" data-sugg="Help me plan my week">Plan my week</button><button class="chip-sugg" data-fill="I need advice on ">Get advice</button><button class="chip-sugg" data-sugg="Teach me something new and useful for my business">Learn something new</button><button class="chip-sugg" data-fill="Search the web for ">Search the web</button><button class="chip-sugg" data-fill="Write code for ">Write code</button></div>
+<div class="chips"><button class="chip-sugg" data-sugg="Teach me something new and useful for my business">Learn something new</button><button class="chip-sugg" data-fill="Search the web for ">Search the web</button><button class="chip-sugg" data-fill="Write code for ">Write code</button></div>
 </div>
 </div>
 <div class="limit" id="limit" hidden><strong>You have reached today's free limit.</strong><span class="muted">It resets in 6 hours. Your earlier chats are still open in the sidebar.</span><div class="limitbtns"><button class="btn" data-go="plans">Upgrade to General Premium</button><button class="btn alt" data-go="plans">Start 2-day trial</button></div></div>
@@ -759,7 +781,7 @@ setTimeout(out,rm?500:4600);setTimeout(out,6500);sp.addEventListener('click',out
 <div style="margin-top:16px"><button class="btn alt" id="libClear">Clear library</button></div>
 </div></section>
 
-<section class="view" id="v-pitch" hidden><div class="wrap">
+<section class="view" id="v-pitch" hidden><div class="wrap"><div class="abanner" data-agent="pitch" hidden></div>
 <h1>Pitch Agent</h1><div class="muted">Finds jobs and clients, writes in your tone, and asks you before anything is sent.</div>
 <div id="pMsg" class="muted" role="status" style="min-height:20px;margin-top:8px"></div>
 <div class="pfun" id="pFun"></div>
@@ -804,7 +826,29 @@ setTimeout(out,rm?500:4600);setTimeout(out,6500);sp.addEventListener('click',out
 <div class="rbar"><input id="rIn" type="text" placeholder="Message the group" maxlength="2000" aria-label="Message the group"><button class="ic send" id="rSend" type="button" aria-label="Send"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div>
 </section>
 <div class="lp-toast" id="gToast" role="status" aria-live="polite" hidden></div>
-<section class="view" id="v-business" hidden><div class="wrap">
+<section class="view" id="v-personal" hidden><div class="wrap">
+<div class="abanner" data-agent="personal" hidden></div><h1>Personal Bot</h1><div class="muted">Your own assistant. It remembers what matters to you, keeps your notes and tasks, and works with your email once Gmail is connected.</div>
+<div class="card" style="margin-top:18px"><h2>Status</h2><div id="pbStatus" class="muted">Checking...</div>
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px"><button class="btn" type="button" id="pbOpen" hidden>Open chat</button><button class="btn" type="button" data-plan="personal" id="pbStart" hidden>Start 2-day trial</button><button class="btn" type="button" data-go="plugins">Connect email</button></div></div>
+</div></section>
+<section class="view" id="v-gmail" hidden><div class="wrap">
+<div class="abanner" data-agent="gmail" hidden></div>
+<h1>Gmail Bot</h1><div class="muted">Write better emails with AI and voice. You always review a message before anything is sent.</div>
+<div class="card" style="margin-top:18px"><h2>Write with AI</h2>
+<div class="muted">Say or type what the email is about. Pelex drafts it with a subject line, then you can improve it and open it in Gmail.</div>
+<textarea class="inp" id="gmIdea" rows="4" maxlength="1500" placeholder="For example: write to a possible business partner and propose a collaboration on a delivery app. Friendly but professional." style="margin-top:10px;width:100%"></textarea>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn" type="button" id="gmDraft">Draft email</button><button class="btn" type="button" id="gmMic" hidden>Speak</button></div>
+<div id="gmMsg" class="muted" style="margin-top:8px"></div>
+<div id="gmOut" class="md" style="margin-top:12px" hidden></div>
+<div id="gmTools" style="display:none;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn" type="button" id="gmCopy">Copy</button><button class="btn" type="button" id="gmOpen">Open in Gmail</button><button class="btn" type="button" data-gm="Make it shorter and more direct.">Shorter</button><button class="btn" type="button" data-gm="Make it warmer and more personal.">Warmer</button><button class="btn" type="button" data-gm="Make it more formal and professional.">More formal</button></div></div>
+<div class="card" style="margin-top:14px"><h2>Your Gmail accounts</h2>
+<div class="muted" id="gmStatus">Connecting your inbox (reading, summarising, labels and replies) turns on by itself once Google approves Pelex. Writing and voice work now.</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn" type="button" id="gmConnect" disabled>Connect Gmail</button></div>
+<div class="muted" style="margin-top:12px">When connected, each account has its own ON/OFF switch. Switching OFF stops Pelex working on that account. Disconnecting removes its access and stored sign-in. They are separate actions.</div></div>
+<div class="card" style="margin-top:14px"><h2>How your privacy is handled</h2>
+<div class="muted">Pelex drafts for you to review and never sends on its own. Attachments and images are not read. Voice input uses your browser's speech service, which may send audio to your device maker. Sign-in tokens are kept on the server, never in your browser.</div></div>
+</div></section>
+<section class="view" id="v-business" hidden><div class="wrap"><div class="abanner" data-agent="business" hidden></div>
 <h1>Business Bot</h1><div class="muted">Tell Pelex about your business. Your bot answers customers in your tone and stays inside the limits you set.</div>
 <div class="card bgate" id="bGate" style="margin-top:18px" hidden><h2>Start the Business Bot plan first</h2><span class="muted">Switch the plan on, then set up your bot here.</span><button class="btn" type="button" data-plan="business">Start 2-day trial</button></div>
 <div id="bForm" hidden>
@@ -846,7 +890,7 @@ setTimeout(out,rm?500:4600);setTimeout(out,6500);sp.addEventListener('click',out
 <div><label for="sFreq" class="muted">How often</label><select class="inp" id="sFreq"><option value="daily">Every day</option><option value="weekdays">Weekdays</option><option value="weekly">Every week</option><option value="every2days">Every 2 days</option><option value="every3days">Every 3 days</option><option value="biweekly">Every 2 weeks</option><option value="monthly">Every month</option><option value="once">Just once</option></select></div>
 <div id="sDayWrap" hidden><label for="sDay" class="muted">On</label><select class="inp" id="sDay"><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option><option value="0">Sunday</option></select></div>
 <div><label for="sTime" class="muted">At</label><input class="inp" id="sTime" type="time" value="08:00"><div class="muted" id="sTzNote" style="font-size:12px;margin-top:4px"></div></div>
-<div><label for="sChan" class="muted">Send to</label><select class="inp" id="sChan"><option value="website">This app</option><option value="telegram" disabled>Telegram (linking soon)</option><option value="whatsapp" disabled>WhatsApp (soon)</option></select></div>
+<div><label for="sChan" class="muted">Send to</label><select class="inp" id="sChan"><option value="website">This app</option><option value="telegram" disabled data-chan="telegram">Telegram (turns on when connected)</option><option value="whatsapp" disabled data-chan="whatsapp">WhatsApp (turns on when connected)</option></select></div>
 <div><label for="sBot" class="muted">Run with</label><select class="inp" id="sBot"><option value="personal">Personal assistant</option><option value="business">Business assistant</option></select></div>
 </div>
 <div style="margin-bottom:12px"><label for="sSrc" class="muted">Website to pull from (optional)</label><input class="inp" id="sSrc" type="url" inputmode="url" placeholder="Paste a website link"></div>
@@ -859,8 +903,12 @@ setTimeout(out,rm?500:4600);setTimeout(out,6500);sp.addEventListener('click',out
 </div></section>
 
 <section class="view" id="v-images" hidden><div class="wrap">
-<h1>Images <span class="badge soon">Coming soon</span></h1><div class="muted">Create pictures, flyers and designs by describing them.</div>
-<div class="card" style="margin-top:18px"><h2>Image creation is on the way</h2><span class="muted">For now you can attach any image in chat and Pelex will explain what is in it.</span></div>
+<h1>Images <span class="badge soon" data-feat="image">Soon</span></h1><div class="muted">Create pictures, flyers and designs by describing them, or find real examples first.</div>
+<div class="card" style="margin-top:18px"><h2>Describe the picture</h2>
+<textarea class="inp" id="imgPrompt" rows="3" maxlength="600" placeholder="For example: a clean Instagram ad for a handmade bag, warm colours, bold headline space" style="width:100%"></textarea>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn" type="button" id="imgCreate">Create image</button><button class="btn" type="button" id="imgFind">Find real examples</button></div>
+<div id="imgMsg" class="muted" style="margin-top:8px"></div><div id="imgOut" class="md" style="margin-top:12px" hidden></div></div>
+<div class="muted" style="margin-top:10px">Tip: for common things such as what an ad or an app screen looks like, "Find real examples" is faster and keeps your allowance. Pictures are kept for 2 days, so save the ones you want.</div>
 </div></section>
 
 <section class="view" id="v-signin" hidden>
@@ -892,18 +940,18 @@ setTimeout(out,rm?500:4600);setTimeout(out,6500);sp.addEventListener('click',out
 <div class="st-photo"><div class="st-world"><div class="st-base"></div><div class="lyr l-win mk-e" style="left:59.78%;top:0.00%;width:43.48%;height:30.57%"><i class="lyi bgo br" style="left:-137.50%;top:0.00%;width:230.00%;height:327.11%"></i></div><div class="lyr l-head mk-e" style="left:21.74%;top:9.51%;width:36.68%;height:37.36%"><i class="lyi bgo " style="left:-59.26%;top:-25.45%;width:272.59%;height:267.64%"></i></div><div class="lyr l-hand mk-e" style="left:45.52%;top:65.90%;width:23.10%;height:11.55%"><i class="lyi bgo " style="left:-197.06%;top:-570.59%;width:432.94%;height:865.88%"></i></div><div class="lyr l-phone mk-e" style="left:31.52%;top:74.73%;width:25.27%;height:10.87%"><i class="lyi bgo br2" style="left:-124.73%;top:-687.50%;width:395.70%;height:920.00%"></i></div><div class="lyr l-c l-c1 mk-r" style="left:53.67%;top:43.48%;width:23.10%;height:32.61%"><i class="lyi bgo fl" style="left:-232.35%;top:-133.33%;width:432.94%;height:306.67%"></i></div><div class="lyr l-c l-c2 mk-r" style="left:66.58%;top:34.65%;width:23.10%;height:31.93%"><i class="lyi bgo fl fl2" style="left:-288.24%;top:-108.51%;width:432.94%;height:313.19%"></i></div><div class="lyr l-c l-c3 mk-r" style="left:79.48%;top:26.49%;width:26.49%;height:27.17%"><i class="lyi bgo fl fl3" style="left:-300.00%;top:-97.50%;width:377.44%;height:368.00%"></i></div><div class="glow-b"></div><div class="glow-g"></div><i class="steam s1"></i><i class="steam s2"></i><i class="steam s3"></i></div></div>
 <div class="st-capbar"><p class="cp1">Tired of working by yourself?</p><p class="cp2">Tired of handling all the taxes?</p><p class="cp3"><b>Pelex has got you.</b><span>Taxes filed. Invoices sorted. Week planned.</span></p></div>
 </div></div></div>
-<div class="lp-in lp-sec" id="lp-features"><h2>Everything Pelex does</h2><p class="lp-lead">One assistant for the work that piles up. Free to start, no login needed.</p><div class="lp-feats"><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H8l-4 4z"/></svg></span><b>Chat and plan</b><span class="d">Ask anything, plan your week, get advice and learn something new.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/></svg></span><b>Search the web</b><span class="d">Live answers pulled from the web, not just old knowledge.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></span><b>Voice chat</b><span class="d">Talk to Pelex and hear it answer back.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/></svg></span><b>Write code</b><span class="d">Get working code in clean blocks you can copy in one tap.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4M10 12h6M10 16h6"/></svg></span><b>Documents</b><span class="d">Save any long reply as a PDF or Word file.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M21 17l-5-5-8 7"/></svg></span><b>Read images and files</b><span class="d">Share up to 4 photos, or a PDF, and ask about them.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg></span><b>Scheduled tasks <span class="badge soon">Soon</span></b><span class="d">Set recurring jobs Pelex runs for you.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7V3M15 7V3M7 7h10v5a5 5 0 0 1-10 0zM12 17v4"/></svg></span><b>Connectors <span class="badge soon">Soon</span></b><span class="d">Link the apps you use so Pelex can act in them.</span></div></div></div>
+<div class="lp-in lp-sec" id="lp-features"><h2>Everything Pelex does</h2><p class="lp-lead">One assistant for the work that piles up. Free to start, no login needed.</p><div class="lp-feats"><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H8l-4 4z"/></svg></span><b>Chat and plan</b><span class="d">Ask anything, plan your week, get advice and learn something new.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/></svg></span><b>Search the web</b><span class="d">Live answers pulled from the web, not just old knowledge.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></span><b>Voice chat</b><span class="d">Talk to Pelex and hear it answer back.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/></svg></span><b>Write code</b><span class="d">Get working code in clean blocks you can copy in one tap.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4M10 12h6M10 16h6"/></svg></span><b>Documents</b><span class="d">Save any long reply as a PDF or Word file.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M21 17l-5-5-8 7"/></svg></span><b>Read images and files</b><span class="d">Share up to 4 photos, or a PDF, and ask about them.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg></span><b>Scheduled tasks <span class="badge soon" data-feat="scheduled">Soon</span></b><span class="d">Set recurring jobs Pelex runs for you.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7V3M15 7V3M7 7h10v5a5 5 0 0 1-10 0zM12 17v4"/></svg></span><b>Connectors <span class="badge soon" data-feat="connectors">Soon</span></b><span class="d">Link the apps you use so Pelex can act in them.</span></div></div></div>
 <div class="lp-in lp-sec" id="lp-personal"><h2>Personal Bot</h2><p class="lp-lead">Your own assistant, working inside your accounts. You name it, then talk to it on the website, Telegram or WhatsApp.</p><div class="lp-feats"><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></span><b>Pelex Mail Agent</b><span class="d">Your Inbox. Your Instructions. Your AI Agent. Works across every email account you connect, each with its own on and off switch. Drafts replies in your tone, filters your inbox and files mail into your own labels.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg></span><b>Asks before it acts</b><span class="d">Suggests a new label or idea by name and waits for your approval. It never sees PINs or payment details, even if they appear in an email.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg></span><b>Calendar and Sheets</b><span class="d">Reads and updates your calendar and spreadsheets from the chat.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg></span><b>Scheduled tasks</b><span class="d">Set daily or weekly jobs in plain words and choose where Pelex delivers them.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span><b>Data entry and statistics</b><span class="d">Turn invoices and records into clean tables, cash-flow summaries and charts.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="5" height="14" rx="1"/><rect x="10" y="4" width="5" height="9" rx="1"/><rect x="17" y="4" width="4" height="11" rx="1"/></svg></span><b>Projects with Trello</b><span class="d">Create and move task cards from the chat, with a clear project structure.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13l20-8-8 20-3-9z"/></svg></span><b>Flights and distance</b><span class="d">Look up ticket prices and driving distance for a trip.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4a3 3 0 0 0-3 3v1a3 3 0 0 0 0 6v1a3 3 0 0 0 5 2V6a2 2 0 0 0-2-2zM15 4a3 3 0 0 1 3 3v1a3 3 0 0 1 0 6v1a3 3 0 0 1-5 2"/></svg></span><b>Remembers you</b><span class="d">Keeps your context and preferences between sessions.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3L3 11l7 3 3 7z"/><path d="M10 14l11-11"/></svg></span><b>Telegram and WhatsApp</b><span class="d">Telegram is included. WhatsApp is an add-on.</span></div></div></div>
 <div class="lp-in lp-sec" id="lp-business"><h2>Business Bot</h2><p class="lp-lead">A support assistant for your business, set up in minutes and managed by you.</p><div class="lp-feats"><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9l1-5h14l1 5M4 9h16v11H4zM9 20v-6h6v6"/></svg></span><b>Website support bot</b><span class="d">Answers your customers on your website, in your brand and tone.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4zM10 21h4"/></svg></span><b>Lead alerts</b><span class="d">Messages you on Telegram when a visitor shows interest, with their details.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 15l2 2 4-4"/></svg></span><b>Meeting handoff</b><span class="d">Asks you whether to book a meeting, then confirms the date to the visitor.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></span><b>Business Mail Agent</b><span class="d">The same Pelex Mail Agent, working on your behalf across your business accounts.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3c4 2 6 6 5 11l-5 3-5-3C6 9 8 5 12 3zM9 19l-2 3M15 19l2 3"/><circle cx="12" cy="10" r="1.6"/></svg></span><b>Self-serve setup</b><span class="d">Pay, describe your business, paste your website address and the bot goes live on its own.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3L3 11l7 3 3 7z"/><path d="M10 14l11-11"/></svg></span><b>Telegram and WhatsApp</b><span class="d">Telegram is included. WhatsApp is an add-on.</span></div></div></div>
 <div class="lp-in lp-sec" id="lp-pitch"><h2>Pelex Pitch Agent</h2><p class="lp-lead">Stop chasing clients and jobs. Pelex finds them, you approve.</p><div class="lp-feats"><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM21 21l-5-5"/></svg></span><b>Finds work for you</b><span class="d">Every day or every 2 days it finds up to 3 companies that need what you do.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h14v16H5zM8 9h8M8 13h8M8 17h5"/></svg></span><b>Reads before it applies</b><span class="d">It checks each job against your experience and only picks real fits.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span><b>You approve every message</b><span class="d">It writes in your tone and sends the draft to you first. Nothing goes out until you tap Approve.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18v12H3zM3 7l9 6 9-6"/></svg></span><b>Sends your resume and portfolio</b><span class="d">After you approve, it sends from your own Gmail with your resume and portfolio attached.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg></span><b>Remote, hybrid or on-site</b><span class="d">Hybrid and on-site search near you. Remote searches the world, in countries you can work for.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span><b>Aims at growing companies</b><span class="d">Your experience sets the size of company it looks for, judged from public signals.</span></div></div><div class="lp-plan" style="max-width:420px;margin:20px auto 0"><h3>Pelex Pitch Agent</h3><div class="tag">Add-on for Personal and Business plans</div><div class="pr"><span data-ngn="&#8358;19,500" data-usd="$15"></span> <small>/ month</small></div><div class="psub"><span data-ngn="&#8358;10,700" data-usd="$8"></span> biweekly or <span data-ngn="&#8358;195,000" data-usd="$145"></span> per year</div><button class="btn" data-go="plans" type="button">See plan</button><ul><li>Up to 3 companies per run</li><li>You approve every message</li><li>Sends from your own Gmail</li><li>2-day free trial</li></ul></div></div>
-<div class="lp-in lp-sec" id="lp-artcraft"><h2>ArtCraft creative tools</h2><p class="lp-lead">Creative apps built on the open-source ArtCraft engine and run for you by Pelex, so there is nothing extra to log in to. Generated images and videos are deleted after two days, so save what you want to keep.</p><div class="lp-feats"><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20L16 8M15 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/></svg></span><b>Image generation <span class="badge soon">Soon</span></b><span class="d">Describe a picture and get it in the chat.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 5v14M17 5v14M3 10h4M3 14h4M17 10h4M17 14h4"/></svg></span><b>Video clips <span class="badge soon">Premium</span></b><span class="d">Realistic 15-second clips, with a monthly limit per person.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4M10 12h6M10 16h6"/></svg></span><b>WordCraft <span class="badge soon">Soon</span></b><span class="d">Documents.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16M4 15h16M10 4v16"/></svg></span><b>GridCraft <span class="badge soon">Soon</span></b><span class="d">Data entry, statistics and volume review.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4M9 15h6"/></svg></span><b>PdfCraft <span class="badge soon">Soon</span></b><span class="d">PDF tools.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span><b>DeckCraft <span class="badge soon">Soon</span></b><span class="d">Slide decks.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 5v14M17 5v14M3 10h4M3 14h4M17 10h4M17 14h4"/></svg></span><b>FilmCraft <span class="badge soon">Soon</span></b><span class="d">Video.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20L16 8M15 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/></svg></span><b>EffectCraft <span class="badge soon">Soon</span></b><span class="d">Visual effects.</span></div></div></div>
-<div class="lp-in lp-sec" id="lp-connectors"><h2>Connectors</h2><p class="lp-lead">Connect the apps you already use. Each one turns on as its sign-in is approved.</p><p class="lp-sub2">Built in</p><div class="lp-pills"><span class="lp-pl2">Web search <span class="badge ok">Live</span></span><span class="lp-pl2">Weather <span class="badge ok">Live</span></span></div><p class="lp-sub2">Google apps <span class="badge soon">Soon</span></p><div class="lp-pills"><span class="lp-pl2">Gmail</span><span class="lp-pl2">Calendar</span><span class="lp-pl2">Drive</span><span class="lp-pl2">Docs</span><span class="lp-pl2">Sheets</span><span class="lp-pl2">Slides</span><span class="lp-pl2">Forms</span><span class="lp-pl2">Meet</span><span class="lp-pl2">Tasks</span><span class="lp-pl2">Keep</span><span class="lp-pl2">Contacts</span><span class="lp-pl2">Maps</span><span class="lp-pl2">YouTube</span></div><p class="lp-sub2">Other apps <span class="badge soon">Soon</span></p><div class="lp-pills"><span class="lp-pl2">Canva</span><span class="lp-pl2">CapCut</span><span class="lp-pl2">Seedance 2.5</span><span class="lp-pl2">Trello</span></div></div>
+<div class="lp-in lp-sec" id="lp-artcraft"><h2>ArtCraft creative tools</h2><p class="lp-lead">Creative apps built on the open-source ArtCraft engine and run for you by Pelex, so there is nothing extra to log in to. Generated images and videos are deleted after two days, so save what you want to keep.</p><div class="lp-feats"><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20L16 8M15 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/></svg></span><b>Image generation <span class="badge soon" data-feat="image">Soon</span></b><span class="d">Describe a picture and get it in the chat.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 5v14M17 5v14M3 10h4M3 14h4M17 10h4M17 14h4"/></svg></span><b>Video clips <span class="badge soon">Premium</span></b><span class="d">Realistic 15-second clips, with a monthly limit per person.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4M10 12h6M10 16h6"/></svg></span><b>WordCraft <span class="badge soon" data-feat="artcraft">Soon</span></b><span class="d">Documents.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16M4 15h16M10 4v16"/></svg></span><b>GridCraft <span class="badge soon" data-feat="artcraft">Soon</span></b><span class="d">Data entry, statistics and volume review.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4M9 15h6"/></svg></span><b>PdfCraft <span class="badge soon" data-feat="artcraft">Soon</span></b><span class="d">PDF tools.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span><b>DeckCraft <span class="badge soon" data-feat="artcraft">Soon</span></b><span class="d">Slide decks.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 5v14M17 5v14M3 10h4M3 14h4M17 10h4M17 14h4"/></svg></span><b>FilmCraft <span class="badge soon" data-feat="artcraft">Soon</span></b><span class="d">Video.</span></div><div class="lp-feat"><span class="ic"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20L16 8M15 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/></svg></span><b>EffectCraft <span class="badge soon" data-feat="artcraft">Soon</span></b><span class="d">Visual effects.</span></div></div></div>
+<div class="lp-in lp-sec" id="lp-connectors"><h2>Connectors</h2><p class="lp-lead">Connect the apps you already use. Each one turns on as its sign-in is approved.</p><p class="lp-sub2">Built in</p><div class="lp-pills"><span class="lp-pl2">Web search <span class="badge ok">Live</span></span><span class="lp-pl2">Weather <span class="badge ok">Live</span></span></div><p class="lp-sub2">Google apps <span class="badge soon" data-feat="connectors">Soon</span></p><div class="lp-pills"><span class="lp-pl2">Gmail</span><span class="lp-pl2">Calendar</span><span class="lp-pl2">Drive</span><span class="lp-pl2">Docs</span><span class="lp-pl2">Sheets</span><span class="lp-pl2">Slides</span><span class="lp-pl2">Forms</span><span class="lp-pl2">Meet</span><span class="lp-pl2">Tasks</span><span class="lp-pl2">Keep</span><span class="lp-pl2">Contacts</span><span class="lp-pl2">Maps</span><span class="lp-pl2">YouTube</span></div><p class="lp-sub2">Other apps <span class="badge soon" data-feat="connectors">Soon</span></p><div class="lp-pills"><span class="lp-pl2">Canva</span><span class="lp-pl2">CapCut</span><span class="lp-pl2">Seedance 2.5</span><span class="lp-pl2">Trello</span></div></div>
 <div class="lp-in lp-sec" id="lp-ads"><h2>Run ads <span class="badge soon">Soon</span></h2><p class="lp-lead">Personal and Business bot users will be able to run their own ad campaigns through Pelex.</p><div class="lp-pills"><span class="lp-pl2">Meta (Facebook, Instagram, WhatsApp)</span><span class="lp-pl2">Google</span><span class="lp-pl2">LinkedIn</span><span class="lp-pl2">YouTube</span><span class="lp-pl2">TikTok</span></div></div>
 <div class="lp-in lp-sec" id="lp-plans"><h2>Explore plans</h2><p class="lp-lead">Start free. Every paid plan begins with a 2-day free trial. A card is taken at the start and you can cancel any time during the trial.</p>
 <div class="lp-tabs" role="tablist"><button class="lp-tab" role="tab" aria-selected="true" data-ptab="ind" type="button">Individual</button><button class="lp-tab" role="tab" aria-selected="false" data-ptab="biz" type="button">Business</button></div>
-<div class="lp-plans" data-p="ind"><div class="lp-plan"><h3>Free</h3><div class="tag">Try Pelex</div><div class="pr">$0</div><div class="psub">Free for everyone</div><button class="btn" data-go="chat" type="button">Try Pelex</button><ul><li>Chat, web search and voice</li><li>Upload images and documents</li><li>Write code and save replies as PDF or Word</li><li>Daily limit, no login needed</li></ul></div><div class="lp-plan"><h3>Premium</h3><div class="tag">For everyday productivity</div><div class="pr"><span data-ngn="&#8358;6,500" data-usd="$5"></span> <small>/ month</small></div><div class="psub"><span data-ngn="&#8358;4,000" data-usd="$3"></span> biweekly or <span data-ngn="&#8358;65,000" data-usd="$50"></span> per year</div><button class="btn" data-go="plans" type="button">See Premium</button><ul><li>Everything in Free, plus:</li><li>Unlimited chat (fair use)</li><li>Live guided walkthroughs of your files</li><li>2-day free trial</li></ul></div><div class="lp-plan"><h3>Personal Bot</h3><div class="tag">Your own assistant</div><div class="pr"><span data-ngn="&#8358;17,500" data-usd="$13"></span> <small>/ month</small></div><div class="psub"><span data-ngn="&#8358;9,500" data-usd="$7"></span> biweekly or <span data-ngn="&#8358;175,500" data-usd="$132"></span> per year</div><button class="btn" data-go="plans" type="button">See plan</button><ul><li>Your Gmail, Calendar and Sheets</li><li>On the website and Telegram</li><li>2-day free trial</li></ul></div></div><div class="lp-plans two" data-p="biz" hidden><div class="lp-plan"><h3>Business Bot</h3><div class="tag">Support bot for your business</div><div class="pr"><span data-ngn="&#8358;20,000" data-usd="$15"></span> <small>/ month</small></div><div class="psub"><span data-ngn="&#8358;11,000" data-usd="$8"></span> biweekly or <span data-ngn="&#8358;200,000" data-usd="$150"></span> per year</div><button class="btn" data-go="plans" type="button">See plan</button><ul><li>Answers customers on your website</li><li>Set to your brand and tone</li><li>Telegram included</li><li>2-day free trial</li></ul></div><div class="lp-plan"><h3>WhatsApp add-on <span class="badge soon">Soon</span></h3><div class="tag">Reach people where they chat</div><div class="pr"><span data-ngn="&#8358;9,500" data-usd="$7"></span> <small>/ month</small></div><div class="psub"><span data-ngn="&#8358;5,500" data-usd="$4"></span> biweekly or <span data-ngn="&#8358;95,000" data-usd="$70"></span> per year</div><button class="btn" disabled aria-disabled="true" type="button">Notify me at launch</button><ul><li>Adds WhatsApp to a Personal or Business plan</li></ul></div></div>
+<div class="lp-plans" data-p="ind"><div class="lp-plan"><h3>Free</h3><div class="tag">Try Pelex</div><div class="pr">$0</div><div class="psub">Free for everyone</div><button class="btn" data-go="chat" type="button">Try Pelex</button><ul><li>Chat, web search and voice</li><li>Upload images and documents</li><li>Write code and save replies as PDF or Word</li><li>Daily limit, no login needed</li></ul></div><div class="lp-plan"><h3>Premium</h3><div class="tag">For everyday productivity</div><div class="pr"><span data-ngn="&#8358;6,500" data-usd="$5"></span> <small>/ month</small></div><div class="psub"><span data-ngn="&#8358;4,000" data-usd="$3"></span> biweekly or <span data-ngn="&#8358;65,000" data-usd="$50"></span> per year</div><button class="btn" data-go="plans" type="button">See Premium</button><ul><li>Everything in Free, plus:</li><li>Unlimited chat (fair use)</li><li>Live guided walkthroughs of your files</li><li>2-day free trial</li></ul></div><div class="lp-plan"><h3>Personal Bot</h3><div class="tag">Your own assistant</div><div class="pr"><span data-ngn="&#8358;17,500" data-usd="$13"></span> <small>/ month</small></div><div class="psub"><span data-ngn="&#8358;9,500" data-usd="$7"></span> biweekly or <span data-ngn="&#8358;175,500" data-usd="$132"></span> per year</div><button class="btn" data-go="plans" type="button">See plan</button><ul><li>Your Gmail, Calendar and Sheets</li><li>On the website and Telegram</li><li>2-day free trial</li></ul></div></div><div class="lp-plans two" data-p="biz" hidden><div class="lp-plan"><h3>Business Bot</h3><div class="tag">Support bot for your business</div><div class="pr"><span data-ngn="&#8358;20,000" data-usd="$15"></span> <small>/ month</small></div><div class="psub"><span data-ngn="&#8358;11,000" data-usd="$8"></span> biweekly or <span data-ngn="&#8358;200,000" data-usd="$150"></span> per year</div><button class="btn" data-go="plans" type="button">See plan</button><ul><li>Answers customers on your website</li><li>Set to your brand and tone</li><li>Telegram included</li><li>2-day free trial</li></ul></div><div class="lp-plan"><h3>WhatsApp add-on <span class="badge soon" data-feat="whatsapp">Soon</span></h3><div class="tag">Reach people where they chat</div><div class="pr"><span data-ngn="&#8358;9,500" data-usd="$7"></span> <small>/ month</small></div><div class="psub"><span data-ngn="&#8358;5,500" data-usd="$4"></span> biweekly or <span data-ngn="&#8358;95,000" data-usd="$70"></span> per year</div><button class="btn" disabled aria-disabled="true" type="button">Notify me at launch</button><ul><li>Adds WhatsApp to a Personal or Business plan</li></ul></div></div>
 <p class="lp-fine">Plans and prices may change. Prices show in naira in Nigeria and in dollars elsewhere.</p></div>
-<div class="lp-in lp-sec" id="lp-faq"><h2>FAQ</h2><div class="lp-faq"><details><summary>What is the Pelex Pitch Agent?</summary><p>Coming soon. You tell it what you do and share your resume and portfolio. It finds a few suitable companies, writes a message in your tone and shows it to you first. It only sends after you approve.</p></details><details><summary>What is Pelex and how does it work?</summary><p>Pelex is an AI agent you talk to by text or voice. Ask it to plan, write, search the web, explain your files and write code. It answers in the chat, and you can save long replies as a PDF or Word file.</p></details><details><summary>What should I use Pelex for?</summary><p>Planning your week, drafting messages and documents, learning something new, researching with web search, and writing code. The Personal and Business bots, coming soon, will work with your own accounts.</p></details><details><summary>How much does it cost?</summary><p>Chat is free with a daily limit and needs no login. Premium and the bots are paid, and every plan starts with a 2-day free trial. A card is taken at the start, and you can cancel any time during the trial. See the plans above.</p></details><details><summary>Do I need an account?</summary><p>No. You can chat without one. Signing in saves your chats and library across your devices.</p></details><details><summary>Can I delete my data?</summary><p>Yes. In Settings you can download your data, delete all your chats, or delete your account.</p></details></div></div>
+<div class="lp-in lp-sec" id="lp-faq"><h2>FAQ</h2><div class="lp-faq"><details><summary>What is the Pelex Pitch Agent?</summary><p>You tell it what you do and share your resume and portfolio. It finds a few suitable companies, writes a message in your tone and shows it to you first. It only sends after you approve.</p></details><details><summary>What is Pelex and how does it work?</summary><p>Pelex is an AI agent you talk to by text or voice. Ask it to plan, write, search the web, explain your files and write code. It answers in the chat, and you can save long replies as a PDF or Word file.</p></details><details><summary>What should I use Pelex for?</summary><p>Planning your week, drafting messages and documents, learning something new, researching with web search, and writing code. The Personal and Business bots work with your own accounts.</p></details><details><summary>How much does it cost?</summary><p>Chat is free with a daily limit and needs no login. Premium and the bots are paid, and every plan starts with a 2-day free trial. A card is taken at the start, and you can cancel any time during the trial. See the plans above.</p></details><details><summary>Do I need an account?</summary><p>No. You can chat without one. Signing in saves your chats and library across your devices.</p></details><details><summary>Can I delete my data?</summary><p>Yes. In Settings you can download your data, delete all your chats, or delete your account.</p></details></div></div>
 <footer class="lp-foot"><div class="lp-in"><div class="cols">
 <div class="fl"><a class="lp-brand" data-go="chat" role="button"><span class="lpmark" role="img" aria-label="Pelex"></span><span>Pelex</span></a>
 <form id="lpAsk"><input id="lpAskIn" type="text" placeholder="How can I help you today?" aria-label="Ask Pelex"><button type="submit" aria-label="Start chat">&#8593;</button></form></div><div><h4>Product</h4><button class="lk" data-go="chat" type="button">Chat</button><button class="lk" data-scroll="lp-plans" type="button">Plans</button><button class="lk" data-scroll="lp-card" type="button">Log in</button><button class="lk" id="lpInstall2" type="button">Download app</button><h4 style="margin-top:22px">Everyday chat</h4><button class="lk" data-fill="Help me plan my week" type="button">Plan my week</button><button class="lk" data-fill="I need advice on " type="button">Get advice</button><button class="lk" data-fill="Teach me something new and useful for my business" type="button">Learn something new</button><button class="lk" data-fill="Write code for " type="button">Write code</button><button class="lk" data-fill="Search the web for " type="button">Search the web</button><button class="lk" data-scroll="lp-features" type="button">Voice chat</button></div><div><h4>Personal Bot</h4><button class="lk" data-scroll="lp-personal" type="button">Pelex Mail Agent</button><button class="lk" data-scroll="lp-personal" type="button">Calendar and Sheets</button><button class="lk" data-scroll="lp-personal" type="button">Scheduled tasks</button><button class="lk" data-scroll="lp-personal" type="button">Data entry and statistics</button><button class="lk" data-scroll="lp-personal" type="button">Projects with Trello</button><button class="lk" data-scroll="lp-personal" type="button">Telegram and WhatsApp</button><h4 style="margin-top:22px">Pelex Pitch Agent</h4><button class="lk" data-scroll="lp-pitch" type="button">Find jobs and clients</button><button class="lk" data-scroll="lp-pitch" type="button">Approve every message</button><h4 style="margin-top:22px">Business Bot</h4><button class="lk" data-scroll="lp-business" type="button">Website support bot</button><button class="lk" data-scroll="lp-business" type="button">Lead alerts</button><button class="lk" data-scroll="lp-business" type="button">Meeting handoff</button><button class="lk" data-scroll="lp-business" type="button">Self-serve setup</button></div><div><h4>ArtCraft</h4><button class="lk" data-scroll="lp-artcraft" type="button">Image generation</button><button class="lk" data-scroll="lp-artcraft" type="button">Video clips</button><button class="lk" data-scroll="lp-artcraft" type="button">WordCraft</button><button class="lk" data-scroll="lp-artcraft" type="button">GridCraft</button><button class="lk" data-scroll="lp-artcraft" type="button">PdfCraft</button><button class="lk" data-scroll="lp-artcraft" type="button">DeckCraft</button><button class="lk" data-scroll="lp-artcraft" type="button">FilmCraft</button><button class="lk" data-scroll="lp-artcraft" type="button">EffectCraft</button><h4 style="margin-top:22px">Connectors</h4><button class="lk" data-scroll="lp-connectors" type="button">Google apps</button><button class="lk" data-scroll="lp-connectors" type="button">Canva and CapCut</button><button class="lk" data-scroll="lp-connectors" type="button">Seedance 2.5</button><button class="lk" data-scroll="lp-connectors" type="button">Trello</button><button class="lk" data-scroll="lp-ads" type="button">Run ads</button></div><div><h4>Company</h4><button class="lk" data-open="lpContact" type="button">Contact us</button><button class="lk" data-scroll="lp-faq" type="button">FAQ</button><h4 style="margin-top:22px">Terms and policies</h4><a href="privacy.html">Privacy policy</a><a href="terms.html">Terms of service</a></div></div><div class="wm">PELEX</div>
@@ -1014,11 +1062,11 @@ setTimeout(out,rm?500:4600);setTimeout(out,6500);sp.addEventListener('click',out
 <p class="muted" style="margin:0 0 8px;font-size:13px">Reply alerts arrive when Pelex answers while this page is in the background.</p>
 <div class="scard">
 <div class="srow"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span>Push notifications</span><label class="tog"><input type="checkbox" id="pvPush" aria-label="Push notifications"><i></i></label></div>
-<div class="srow"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Scheduled task reminders <span class="badge soon">Soon</span></span><label class="tog"><input type="checkbox" id="pvNotifTasks" disabled aria-label="Scheduled task reminders"><i></i></label></div>
+<div class="srow"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Scheduled task reminders <span class="badge soon" data-feat="notifications">Soon</span></span><label class="tog"><input type="checkbox" id="pvNotifTasks" disabled aria-label="Scheduled task reminders"><i></i></label></div>
 <div class="srow"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Agent reply alerts</span><label class="tog"><input type="checkbox" id="pvNotifReply" checked aria-label="Agent reply alerts"><i></i></label></div>
-<div class="srow"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></svg><span>Weekly activity summary <span class="badge soon">Soon</span></span><label class="tog"><input type="checkbox" id="pvNotifWeekly" disabled aria-label="Weekly activity summary"><i></i></label></div>
+<div class="srow"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></svg><span>Weekly activity summary <span class="badge soon" data-feat="notifications">Soon</span></span><label class="tog"><input type="checkbox" id="pvNotifWeekly" disabled aria-label="Weekly activity summary"><i></i></label></div>
 <div class="srow"><svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><span>Security alerts</span><label class="tog"><input type="checkbox" id="pvNotifSecurity" checked disabled aria-label="Security alerts"><i></i></label></div>
-<div class="srow"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>Product news and tips <span class="badge soon">Soon</span></span><label class="tog"><input type="checkbox" id="pvNotifNews" disabled aria-label="Product news and tips"><i></i></label></div>
+<div class="srow"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>Product news and tips <span class="badge soon" data-feat="notifications">Soon</span></span><label class="tog"><input type="checkbox" id="pvNotifNews" disabled aria-label="Product news and tips"><i></i></label></div>
 </div>
 <p class="muted" id="pvPushNote" style="margin:6px 0 0;font-size:13px"></p>
 <div class="sgroup">Shared links</div>
@@ -1085,7 +1133,8 @@ setTimeout(out,rm?500:4600);setTimeout(out,6500);sp.addEventListener('click',out
 var WEBHOOK_URL = 'https://pelexn8n.onrender.com/webhook/c2ec155c-7985-4c79-90a3-73c7ae499854/chat';
 var PERSONAL_WEBHOOK_URL = 'https://pelexn8n.onrender.com/webhook/c9b40769-e309-45e7-951f-ab531c535635/chat';
 var BUSINESS_WEBHOOK_URL = 'PASTE_BUSINESS_CHAT_URL_HERE';
-var AGENT_URL = 'PASTE_AGENT_URL_HERE'; // the Cloudflare shield address (or the Render address). While it says PASTE_, public chat keeps using n8n
+var AGENT_URL = 'https://admin-pelex-dev.pelumiephraim9.workers.dev'; // the Cloudflare shield address (or the Render address). While it says PASTE_, public chat keeps using n8n
+var N8N_RETIRED = true; // n8n is switched off: every chat goes to the code backend, and a backend problem is shown instead of hidden
 // ======================
 var $ = function(i){return document.getElementById(i)};
 var chat=$('chat'), input=$('in'), chip=$('chip');
@@ -1095,7 +1144,7 @@ if(!sid){sid='s'+Math.random().toString(36).slice(2)+Date.now();try{localStorage
 var h=new Date().getHours();
 if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-function add(t,cls,img,retryFn){var d=document.createElement('div');d.className='msg '+(cls||'');
+function add(t,cls,img,retryFn){try{if(typeof t==='string'&&t){var hh=(window.__hist=window.__hist||[]);if(cls==='me')hh.push({role:'user',content:t});else if(!cls)hh.push({role:'assistant',content:t});if(hh.length>40)hh.splice(0,hh.length-40)}}catch(e){}var d=document.createElement('div');d.className='msg '+(cls||'');
   if(img){var imgs=Array.isArray(img)?img:[img],box=d;if(imgs.length>1){box=document.createElement('div');box.className='imgs';d.appendChild(box)}imgs.forEach(function(src){var im=document.createElement('img');im.src=src;im.alt='Uploaded image';box.appendChild(im)})}
   var textNode=document.createElement('span');
   if(!cls&&t.indexOf('```')>-1){
@@ -1115,10 +1164,11 @@ function add(t,cls,img,retryFn){var d=document.createElement('div');d.className=
         pre.appendChild(bar);textNode.appendChild(pre)}
     });
   }else{if(!cls&&window.mdRender)textNode.appendChild(window.mdRender(t));else textNode.textContent=t}
+  if(!cls&&window.__lastSteps&&window.__lastSteps.length&&!window.__stepsDone){window.__stepsDone=true;var dt=document.createElement('details');dt.className='actlog';var sm=document.createElement('summary'),sn=window.__lastSteps.length;sm.textContent='Activity \u00b7 '+sn+(sn===1?' step':' steps');dt.appendChild(sm);window.__lastSteps.forEach(function(x){var r=document.createElement('div');r.textContent='\u2713 '+x;dt.appendChild(r)});d.appendChild(dt)}
   d.appendChild(textNode);
   if(!cls){ // bot reply: add copy / thumbs / retry row
     var row=document.createElement('div');row.className='msgactions';
-    var cp=document.createElement('button');cp.setAttribute('aria-label','Copy');cp.textContent='⧉';
+    var cp=document.createElement('button');cp.setAttribute('aria-label','Copy');cp.textContent='Copy';
     cp.onclick=function(){
       var text=t;
       (navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(text):Promise.reject())
@@ -1131,7 +1181,6 @@ function add(t,cls,img,retryFn){var d=document.createElement('div');d.className=
     var fb=document.createElement('span');fb.className='fb';
     up.onclick=function(){up.setAttribute('aria-pressed','true');down.setAttribute('aria-pressed','false');fb.textContent='Thanks for the feedback.'};
     down.onclick=function(){down.setAttribute('aria-pressed','true');up.setAttribute('aria-pressed','false');fb.textContent='Thanks, noted.'};
-    row.appendChild(up);row.appendChild(down);
     if(t.length>180){
       var esc=function(x){return String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')};
       var docHtml=function(){return '<html><head><meta charset="utf-8"><title>Pelex</title><style>body{font-family:Arial,sans-serif;line-height:1.55;max-width:720px;margin:32px auto;padding:0 16px}pre{background:#f3f4f6;padding:10px;white-space:pre-wrap}</style></head><body><div style="white-space:pre-wrap">'+esc(t)+'</div><p style="color:#888;font-size:12px;margin-top:30px">Made with Pelex</p></body></html>'};
@@ -1140,11 +1189,21 @@ function add(t,cls,img,retryFn){var d=document.createElement('div');d.className=
       var wd=document.createElement('button');wd.type='button';wd.className='dl';wd.textContent='Word';wd.setAttribute('aria-label','Save as Word document');
       wd.onclick=function(){var bl=new Blob(['\ufeff'+docHtml()],{type:'application/msword'});var a=document.createElement('a');a.href=URL.createObjectURL(bl);a.download='pelex-document.doc';document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},1500)};
       row.appendChild(pdf);row.appendChild(wd)}
-    if(retryFn){var rt=document.createElement('button');rt.setAttribute('aria-label','Retry');rt.textContent='⟳';
-      rt.onclick=function(){rt.disabled=true;retryFn().finally(function(){rt.disabled=false})};
-      row.appendChild(rt)}
+    var rt=document.createElement('button');rt.setAttribute('aria-label','Reload');rt.textContent='Reload';
+    rt.onclick=function(){if(retryFn){rt.disabled=true;retryFn().finally(function(){rt.disabled=false})}else if(window.__lastQ){input.value=window.__lastQ;var sb2=document.getElementById('send');if(sb2)sb2.click()}};
+    row.appendChild(rt);
+    var sh=document.createElement('button');sh.setAttribute('aria-label','Share');sh.textContent='Share';
+    sh.onclick=function(){if(navigator.share){navigator.share({text:t}).catch(function(){})}else{cp.click()}};
+    row.appendChild(sh);row.appendChild(up);row.appendChild(down);
     row.appendChild(fb);
     d.appendChild(row);
+  }else if(cls==='me'&&typeof t==='string'&&t){
+    window.__lastQ=t;var ur=document.createElement('div');ur.className='msgactions';
+    var uc=document.createElement('button');uc.type='button';uc.textContent='Copy';
+    uc.onclick=function(){(navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(t):Promise.reject()).catch(function(){}).then(function(){uc.textContent='Copied';setTimeout(function(){uc.textContent='Copy'},1200)})};
+    var ue=document.createElement('button');ue.type='button';ue.textContent='Edit';
+    ue.onclick=function(){input.value=t;input.focus()};
+    ur.appendChild(uc);ur.appendChild(ue);d.appendChild(ur);
   }
   chat.appendChild(d);chat.scrollTop=chat.scrollHeight;return d}
 
@@ -1156,7 +1215,7 @@ async function netDown(){
   catch(e){return true}}
 // backend trouble stays silent; only a real internet problem is shown; deliberate user-facing messages still show
 async function showErr(e){
-  if(e&&e.backend)return;
+  if(e&&e.backend){if(N8N_RETIRED)add('The assistant is not reachable right now. Please try again in a moment.','sys');return}
   if(e&&e.name==='TypeError'){if(await netDown())add(NET_MSG,'sys');return}
   if(e&&e.message)add(e.message,'sys')}
 async function askAgentRetry(text){
@@ -1197,23 +1256,24 @@ function guestHumanToken(){return tsReady().then(function(){return new Promise(f
   var to=setTimeout(function(){fin(rej,new Error(MSG))},30000);
   try{id=turnstile.render(box,{sitekey:TURNSTILE_SITE_KEY,appearance:'interaction-only',theme:'auto',callback:function(t){fin(res,t)},'error-callback':function(){fin(rej,new Error(MSG))}})}catch(e){fin(rej,new Error(MSG))}
 })})}
-async function agentAuth(force){
-  try{var ss=await sb.auth.getSession(),tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(tk)return tk}catch(e){}
+async function agentAuth(force,skipUser){
+  if(!skipUser){try{var ss=await sb.auth.getSession(),tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(tk)return tk}catch(e){}}
   if(!force&&__gt.tok&&Date.now()<__gt.exp-60000)return __gt.tok;
   if(__gt.p)return __gt.p;
   __gt.p=(async function(){try{
     var ht=await guestHumanToken();
     var r=await fetch(AGENT_URL.replace(/\/+$/,'')+'/auth/guest',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({turnstileToken:ht})});
     var j=await r.json().catch(function(){return{}});
-    if(!r.ok||!j.token)throw new Error(j.error||'Could not confirm you are human. Please try again.');
+    if(!r.ok||!j.token){var ge=new Error(j.error||'Could not confirm you are human. Please try again.');if([404,500,502,503].indexOf(r.status)>-1)ge.backend=true;throw ge}
     __gt.tok=j.token;__gt.exp=Date.now()+(j.expiresIn||1800000);return j.token}finally{__gt.p=null}})();
   return __gt.p}
-function stepWait(el){window.__lastSteps=[];window.__stepCb=function(l){try{window.__lastSteps.push(l);var t=el.querySelector('span')||el;t.textContent=l+'...'}catch(e){}}}
+function stepWait(el){window.__lastSteps=[];window.__stepsDone=false;window.__stepCb=function(l){try{window.__lastSteps.push(l);var sp=el.querySelector('span')||el,h=document.createElement('div'),n=window.__lastSteps.length;h.className='act';window.__lastSteps.forEach(function(x,i){var r=document.createElement('div');r.className='actrow'+(i===n-1?' now':'');r.textContent=(i===n-1?'\u2022 ':'\u2713 ')+x;h.appendChild(r)});sp.innerHTML='';sp.appendChild(h)}catch(e){}}}
 async function askPublicAgent(text,meta){
   var base=AGENT_URL.replace(/\/+$/,'');
   for(var attempt=0;attempt<2;attempt++){
-    var tok=await agentAuth(attempt>0);
-    var r=await fetch(base+'/chat/stream',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+tok},body:JSON.stringify({action:'sendMessage',sessionId:agentSid(),chatInput:text,metadata:meta})});
+    var tok=await agentAuth(attempt>0,attempt>0);
+    var sidUse=(meta&&meta.__sid)||agentSid();if(meta&&meta.__sid){meta=Object.assign({},meta);delete meta.__sid}
+    var r=await fetch(base+'/chat/stream',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+tok},body:JSON.stringify({action:'sendMessage',sessionId:sidUse,chatInput:text,metadata:meta})});
     if(r.status===401&&attempt===0){__gt={tok:'',exp:0,p:null};continue}
     if(!r.ok){
       var j=await r.json().catch(function(){return{}});
@@ -1231,6 +1291,11 @@ async function askPublicAgent(text,meta){
     if(out!==null)return String(out);
     var ee=new Error(err||'The agent could not reply.');ee.backend=true;throw ee}
   throw new Error('Could not confirm you are human. Please try again.')}
+async function sttCall(b64,mime){
+  if(AGENT_URL.indexOf('PASTE_')!==0){
+    try{var tok=await agentAuth(false,false);var r0=await fetch(AGENT_URL.replace(/\/+$/,'')+'/voice/stt',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+tok},body:JSON.stringify({audio:b64,mime:mime,language:langCode()})});var j0=await r0.json().catch(function(){return{}});if(r0.ok)return j0;if(r0.status===401)__gt={tok:'',exp:0,p:null}}catch(e){}
+  }
+  return await post('/.netlify/functions/transcribe',{audio:b64,mime:mime,language:langCode()})}
 async function askAgent(text){
   var useAgent=AGENT_URL.indexOf('PASTE_')!==0;
   if(WEBHOOK_URL.indexOf('PASTE_')===0&&!useAgent){var ne=new Error('The chat backend is not connected yet.');ne.backend=true;throw ne}
@@ -1239,7 +1304,8 @@ async function askAgent(text){
     url=PERSONAL_WEBHOOK_URL;personal=true;
     try{var ss=await sb.auth.getSession(),tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(tk)meta.accessToken=tk}catch(e){}
   }
-  if(useAgent&&!personal)return await askPublicAgent(text,meta);
+  if(N8N_RETIRED&&useAgent){try{if(await personalOn()){meta.agent='personal';meta.fallback='general'}}catch(e5){}return await askPublicAgent(text,meta)}
+  if(useAgent&&!personal){try{return await askPublicAgent(text,meta)}catch(e0){if(!(e0&&(e0.backend||e0.name==='TypeError'))||WEBHOOK_URL.indexOf('PASTE_')===0)throw e0}}
   var r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'sendMessage',sessionId:agentSid(),chatInput:text,metadata:meta})});
   var raw=await r.text(), out=raw;
   try{var j=JSON.parse(raw);var o=Array.isArray(j)?j[0]:j;out=o.output||o.response||o.reply||o.text||o.message||raw}catch(e){}
@@ -1285,7 +1351,8 @@ var voiceWarned=false;
 function voiceFail(e){if(voiceWarned)return;voiceWarned=true;var m=String((e&&e.message)||'');
   var why=/404|not found/i.test(m)?'the voice function is not deployed on this site yet':/not configured/i.test(m)?'the ElevenLabs key is missing on the server':/quota|credit|401|402|429|unusual/i.test(m)?'ElevenLabs refused the request ('+m+')':(m||'no reply from the voice service');
   try{add('ElevenLabs voice is not responding: '+why+'. Using your device\'s basic voice instead.','sys')}catch(x){}}
-function fetchAudio(c){var vp=voicePrefs();return post('/.netlify/functions/speak',{text:c,voice:vp.voice,speed:vp.speed,language:langCode()}).then(function(r){if(r&&r.audio)return 'data:audio/mpeg;base64,'+r.audio;voiceFail(new Error('the voice service sent back no audio'));return null}).catch(function(e){voiceFail(e);return null})}
+var VOICE_ENGINE='browser'; // 'browser' = free voice built into the phone or browser; 'elevenlabs' = the paid Netlify voice function
+function fetchAudio(c){if(VOICE_ENGINE==='browser')return Promise.resolve(null);var vp=voicePrefs();return post('/.netlify/functions/speak',{text:c,voice:vp.voice,speed:vp.speed,language:langCode()}).then(function(r){if(r&&r.audio)return 'data:audio/mpeg;base64,'+r.audio;voiceFail(new Error('the voice service sent back no audio'));return null}).catch(function(e){voiceFail(e);return null})}
 function playUrl(u){return new Promise(function(res){
   curRes=res;
   player.onended=player.onerror=function(){player.onended=player.onerror=null;curRes=null;res(true)};
@@ -1402,7 +1469,7 @@ async function handleAudio(blob,mime){
   var note=add('Listening...','sys');
   try{
     var b64=await new Promise(function(res){var f=new FileReader();f.onload=function(){res(String(f.result).split(',')[1])};f.readAsDataURL(blob)});
-    var r=await post('/.netlify/functions/transcribe',{audio:b64,mime:mime,language:langCode()});
+    var r=await sttCall(b64,mime);
     note.remove();
     if(r.text){r.text=r.text.replace(/\([^)]{0,40}\)|\[[^\]]{0,40}\]/g,'').trim();if(r.text.replace(/[^\p{L}\p{N}]/gu,'').length<2)r.text=''}
     if(!r.text){if(!live)add('I could not make out that recording. Try again.','sys');busy=false;if(live&&vpref('handsfree',true))listen();else releaseSoon();return}
@@ -1450,7 +1517,7 @@ function showAttach(kind,data,name){
       var x=document.createElement('button');x.type='button';x.className='thx';x.setAttribute('aria-label','Remove image');x.textContent='\u00d7';
       x.onclick=function(){pendingImgs.splice(ix,1);if(pendingImgs.length)showAttach('img');else clearAttach()};
       w.appendChild(x);th.appendChild(w)});
-    $('attachNm').textContent=pendingImgs.length+(pendingImgs.length===1?' image':' images')+' (up to 4)';attach.classList.add('multi');
+    $('attachNm').textContent=pendingImgs.length+(pendingImgs.length===1?' image':' images')+' (up to 6)';attach.classList.add('multi');
   }else{var d=document.createElement('div');d.className='th';d.textContent='\ud83d\udcc4';th.appendChild(d);$('attachNm').textContent=name;attach.classList.remove('multi')}
   attach.hidden=false}
 function clearAttach(){attach.classList.remove('multi');pendingImgs=[];pendingDoc=null;attach.hidden=true;$('attachTh').innerHTML='';chip.style.display='none'}
@@ -1463,7 +1530,8 @@ async function sendImage(){
   add(q,'me',datas);var w=add('Looking at the image...','sys');
   try{await ensureChat(q)}catch(e){}
   saveMsg('user',(datas.length>1?'[Images x'+datas.length+'] ':'[Image] ')+typed);
-  try{var r=await post('/.netlify/functions/vision',{images:datas,prompt:q});w.remove();add(r.text);saveMsg('assistant',r.text);try{window.notifyReply&&window.notifyReply(r.text)}catch(e2){}}
+  stepWait(w);
+  try{var r;if(AGENT_URL.indexOf('PASTE_')!==0){try{r={text:await askPublicAgent(q,Object.assign({},agentMeta(),{images:datas}))}}catch(e1){if(!(e1&&(e1.backend||e1.name==='TypeError')))throw e1;r=await post('/.netlify/functions/vision',{images:datas,prompt:q})}}else{r=await post('/.netlify/functions/vision',{images:datas,prompt:q})}w.remove();add(r.text);saveMsg('assistant',r.text);try{window.notifyReply&&window.notifyReply(r.text)}catch(e2){}}
   catch(err){w.remove();await showErr(err)}
 }
 $('file').onchange=async function(e){
@@ -1471,7 +1539,7 @@ $('file').onchange=async function(e){
   try{
     var imgs=fs.filter(function(f){return f.type.indexOf('image/')===0});
     if(imgs.length){
-      pendingDoc=null;var room=4-pendingImgs.length;
+      pendingDoc=null;var room=6-pendingImgs.length;
       for(var k=0;k<Math.min(room,imgs.length);k++){pendingImgs.push(await shrink(imgs[k]))}
       if(imgs.length>room)add('You can attach up to 4 images at a time.','sys');
       showAttach('img');input.focus();
@@ -1668,7 +1736,7 @@ document.querySelectorAll('.tab').forEach(function(b){b.addEventListener('click'
     sw.setAttribute('aria-checked',on?'true':'false');
     sw.setAttribute('aria-label',(on?'Remove ':'Add ')+ADS[k].name+' ads '+(on?'from':'to')+' my list');
     card.dataset.on=on?'1':'0';
-    card.querySelector('.plugstat').textContent=on?'On your list. Connects when live.':'Coming soon.';
+    card.querySelector('.plugstat').textContent=on?'On your list. Connects when live.':'Inactive. Turns on by itself when connected.';
     if(cur===k)document.getElementById('adList').textContent=on?'Remove from my list':'Add to my list';
   }
   function toggle(k){var i=saved.indexOf(k);if(i>-1)saved.splice(i,1);else saved.push(k);persist();paint(k)}
@@ -1725,7 +1793,7 @@ document.querySelectorAll('.tab').forEach(function(b){b.addEventListener('click'
       rm.addEventListener('click',function(){list=list.filter(function(x){return x.host!==it.host});save();render()});
       top.appendChild(lg);top.appendChild(h);top.appendChild(rm);
       var m=document.createElement('span');m.className='muted';m.textContent=it.host;
-      var st=document.createElement('span');st.className='plugstat';st.textContent='Coming soon. We are looking into connecting it.';
+      var st=document.createElement('span');st.className='plugstat';st.textContent='Inactive. We have noted that you want it.';
       c.appendChild(top);c.appendChild(m);c.appendChild(st);
       grid.insertBefore(c,addCard)});
   }
@@ -1745,7 +1813,7 @@ document.querySelectorAll('.tab').forEach(function(b){b.addEventListener('click'
     btn.disabled=true;
     list.push({url:it.url,host:it.host,name:it.name});save();render();inp.value='';
     var ok=await send(it);
-    note.textContent=ok?'Added. It shows as Coming soon, and we have been told you want it.':'Added on this device as Coming soon. Sign in so we can see your request too.';
+    note.textContent=ok?'Added. It shows as Inactive, and we have been told you want it.':'Added on this device as Inactive. Sign in so we can see your request too.';
     btn.disabled=false;
   }
   btn.addEventListener('click',add);
@@ -1784,8 +1852,10 @@ libRender();
 // ---- Supabase: saved chats, Projects and the Scheduled board ----
 var curUser=null,curChatId=null,curProjectId=null,chatsCache=[],lastUid=null;
 function userDisplay(u){return u?((u.user_metadata&&(u.user_metadata.full_name||u.user_metadata.name||u.user_metadata.user_name))||(u.email||'').split('@')[0]||'there'):''}
-function agentSid(){return(signedIn&&curChatId)?'public-'+curChatId:sid}
-function agentMeta(){var m=curUser?{userId:curUser.id,userName:userDisplay(curUser)}:{};if(window.customPrefs)m.custom=window.customPrefs();if(curUser&&window.__lastCtx&&document.querySelectorAll('#chat .msg.me').length<=1)m.lastChat=window.__lastCtx;var pf=curUser&&curUser.user_metadata&&curUser.user_metadata.profile;if(pf)m.profile={category:pf.category||'',interests:pf.interests||[],about:pf.about||''};return m}
+function mapSid(id,s0){try{var m=JSON.parse(localStorage.getItem('pelex_chat_sids')||'{}');m[id]=s0;var ks=Object.keys(m);if(ks.length>400)delete m[ks[0]];localStorage.setItem('pelex_chat_sids',JSON.stringify(m))}catch(e){}}
+function chatSid(id){try{return JSON.parse(localStorage.getItem('pelex_chat_sids')||'{}')[id]||null}catch(e){return null}}
+function agentSid(){return(signedIn&&curChatId)?(chatSid(curChatId)||'public-'+curChatId):sid}
+function agentMeta(){var m=curUser?{userId:curUser.id,userName:userDisplay(curUser)}:{};if(window.customPrefs)m.custom=window.customPrefs();m.history=(window.__hist||[]).slice(-12);if(curUser&&window.__lastCtx&&document.querySelectorAll('#chat .msg.me').length<=1)m.lastChat=window.__lastCtx;var pf=curUser&&curUser.user_metadata&&curUser.user_metadata.profile;if(pf)m.profile={category:pf.category||'',interests:pf.interests||[],about:pf.about||''};return m}
 function dbOk(){return !!(sb&&signedIn&&curUser)}
 function syncWelcome(){var cb=chat.querySelector('.chatbody');if(cb)cb.style.display=chat.querySelector('.msg')?'none':''}
 (function(){
@@ -1842,7 +1912,7 @@ async function ensureChat(firstText){
   var title=String(firstText||'New chat').replace(/\s+/g,' ').trim().slice(0,48)||'New chat';
   var r=await sb.from('chats').insert({title:title,project_id:curProjectId||null}).select('id').single();
   if(r.error||!r.data){chatFail('chat could not be saved',r.error||{message:'no row returned'});return}
-  curChatId=r.data.id;loadRecents();
+  curChatId=r.data.id;mapSid(curChatId,sid);loadRecents();
 }
 function saveMsg(role,content){
   if(!dbOk()||!curChatId||!content||!window.histOn())return;
@@ -1851,11 +1921,11 @@ function saveMsg(role,content){
     .then(function(mr){if(mr&&mr.error)chatFail('message could not be saved',mr.error);return sb.from('chats').update({updated_at:new Date().toISOString()}).eq('id',cid)})
     .catch(function(){});
 }
-function resetChatView(){chat.querySelectorAll('.msg').forEach(function(m){m.remove()});syncWelcome()}
+function resetChatView(){window.__hist=[];chat.querySelectorAll('.msg').forEach(function(m){m.remove()});syncWelcome()}
 function newChat(projectId){
   curChatId=null;curProjectId=projectId||null;pendingDoc=null;
   try{clearAttach()}catch(e){}
-  if(!signedIn){sid='s'+Math.random().toString(36).slice(2)+Date.now();try{localStorage.setItem('pelex_sid',sid)}catch(e){}}
+  sid='s'+Math.random().toString(36).slice(2)+Date.now();try{localStorage.setItem('pelex_sid',sid)}catch(e){}
   resetChatView();loadRecents();
 }
 var ncb=document.querySelector('.newchat');if(ncb)ncb.addEventListener('click',function(){newChat()});
@@ -2863,6 +2933,11 @@ document.addEventListener('keydown',function(e){if(imgMode&&ta&&e.target===ta&&e
   function bAdd(t,me){var d=document.createElement('div');d.className='bm'+(me?' me':'');if(me)d.textContent=t;else d.appendChild(window.mdRender(t));$n('bMsgs').appendChild(d);$n('bMsgs').scrollTop=$n('bMsgs').scrollHeight;return d}
   async function bSend(){var t=$n('bIn').value.trim();if(!t)return;
     if(!biz||!biz.id){$n('bMsg').textContent='Save your bot first.';return}
+    if(AGENT_URL.indexOf('PASTE_')!==0){
+      $n('bIn').value='';bAdd(t,true);var w0=bAdd('...',false);
+      try{var o0=await askPublicAgent(t,Object.assign({},agentMeta(),{agent:'business',businessId:biz.id,__sid:'biz-'+bSid}));w0.remove();bAdd(String(o0),false)}
+      catch(e0){w0.remove();bAdd((e0&&!e0.backend&&e0.message)?e0.message:'The bot could not reply right now. Please try again.',false)}
+      return}
     if(typeof BUSINESS_WEBHOOK_URL==='undefined'||BUSINESS_WEBHOOK_URL.indexOf('PASTE_')===0){$n('bMsg').textContent='The Business chat address is not connected yet. Paste it into BUSINESS_WEBHOOK_URL in index.html.';return}
     $n('bIn').value='';bAdd(t,true);var w=bAdd('...',false);
     try{var r=await fetch(BUSINESS_WEBHOOK_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'sendMessage',sessionId:bSid,chatInput:t,metadata:{businessId:biz.id}})});
@@ -2991,6 +3066,148 @@ window.openPreview=function(html){
   o.querySelector('.pvx').onclick=function(){o.remove()};
   o.addEventListener('click',function(e){if(e.target===o)o.remove()});
   document.body.appendChild(o)};
+</script>
+<script>
+(function(){var _g3=go;go=function(v,t){_g3(v,t);if(v==='personal')paintPersonal()};
+async function paintPersonal(){var st=document.getElementById('pbStatus'),o=document.getElementById('pbOpen'),b=document.getElementById('pbStart');o.hidden=true;b.hidden=true;
+  if(!signedIn){st.textContent='Sign in to use the Personal Bot.';return}
+  var on=false;try{on=await personalOn()}catch(e){}
+  if(on){st.textContent='On. Your new chats now go to your Personal Bot.';o.hidden=false}else{st.textContent='Off. Start the plan to switch it on.';b.hidden=false}}
+document.getElementById('pbOpen').onclick=function(){go('chat')}})();
+</script>
+<script>
+(function(){
+  if(!/[#?&]diag\b/.test(location.hash+location.search))return;
+  setTimeout(async function(){
+    var box=document.createElement('div');box.style.cssText='position:fixed;inset:0;z-index:999;background:#fff;color:#111;padding:16px;overflow:auto;font:13px/1.5 monospace';
+    box.innerHTML='<b>Pelex connection check</b> <button id="dgx" type="button" style="float:right;padding:6px 12px">Close</button><pre id="dgo" style="white-space:pre-wrap;word-break:break-word"></pre>';
+    document.body.appendChild(box);var out=document.getElementById('dgo');document.getElementById('dgx').onclick=function(){box.remove()};
+    function p(x){out.textContent+=x+'\n'}
+    var base=AGENT_URL.replace(/\/+$/,'');p('Page: '+location.origin);p('Agent address: '+AGENT_URL);p('');
+    try{var r=await fetch(base+'/health');var t=await r.text();p('1. Shield /health: '+r.status+' '+t.slice(0,260))}catch(e){p('1. Shield /health FAILED: '+e.message)}
+    var tok='',kind='';
+    try{var ss=await sb.auth.getSession();tok=(ss&&ss.data&&ss.data.session&&ss.data.session.access_token)||'';if(tok)kind='signed-in login'}catch(e){}
+    if(tok){p('2. Using your signed-in login')}
+    else{try{p('2. Human check: starting');var ht=await guestHumanToken();p('2. Human check: OK');var g=await fetch(base+'/auth/guest',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({turnstileToken:ht})});var gt=await g.text();p('3. Guest token: '+g.status+' '+gt.replace(/"token":"[^"]+"/,'"token":"..."').slice(0,200));try{tok=JSON.parse(gt).token||''}catch(e){}kind='guest'}catch(e){p('2/3. Human check or guest token FAILED: '+e.message)}}
+    if(!tok){p('');p('Stopped: no token.');return}
+    try{var c=await fetch(base+'/chat/stream',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+tok},body:JSON.stringify({action:'sendMessage',sessionId:'diag-'+Date.now(),chatInput:'Say hello in five words.',metadata:{}})});var ct=await c.text();p('4. Chat ('+kind+'): '+c.status+' '+ct.slice(0,420))}catch(e){p('4. Chat FAILED: '+e.message)}
+    p('');p('Done. Screenshot this and send it.');
+  },1500);
+})();
+</script>
+<script>
+// ---- slash commands: type "/" in the chat box to pick a command. The list comes from the backend (GET /commands) ----
+(function(){
+  var menu=document.createElement('div');menu.id='slashMenu';menu.hidden=true;menu.setAttribute('role','listbox');document.body.appendChild(menu);
+  var cmds=null,loading=false,sel=0,shown=[];
+  var FALLBACK=[{name:'help',description:'Show every command',implemented:true},{name:'prompt',description:'Turn a rough idea into a strong AI prompt',implemented:true},{name:'image',description:'Create a picture from a description',implemented:true},{name:'search',description:'Search the web',implemented:true},{name:'code',description:'Write working code',implemented:true},{name:'summarize',description:'Summarise a text or a web page',implemented:true},{name:'translate',description:'Translate into another language',implemented:true},{name:'weather',description:'Weather and 5-day forecast',implemented:true}];
+  function base(){return (typeof AGENT_URL==='string'&&AGENT_URL.indexOf('PASTE_')!==0)?AGENT_URL.replace(/\/+$/,''):''}
+  function load(){
+    if(cmds||loading)return;loading=true;var b=base();
+    if(!b){cmds=FALLBACK;loading=false;return}
+    fetch(b+'/commands').then(function(r){return r.ok?r.json():Promise.reject()}).then(function(j){cmds=(j&&j.commands&&j.commands.length)?j.commands:FALLBACK}).catch(function(){cmds=FALLBACK}).then(function(){loading=false;update()})}
+  function match(q){
+    q=q.toLowerCase();var list=cmds||FALLBACK,sc=[];
+    list.forEach(function(c,i){
+      var al=c.aliases||[],d=String(c.description||'').toLowerCase(),sco=null;
+      if(!q)sco=2;else if(c.name===q)sco=0;else if(c.name.indexOf(q)===0)sco=1;else if(al.indexOf(q)>-1)sco=1.5;else if(al.some(function(x){return x.indexOf(q)===0}))sco=2;else if(c.name.indexOf(q)>-1||d.indexOf(q)>-1)sco=3;
+      if(sco!==null)sc.push({c:c,s:sco,i:i,off:c.implemented===false?1:0})});
+    sc.sort(function(x,y){return x.off-y.off||x.s-y.s||x.i-y.i});
+    var res=sc.slice(0,40).map(function(x){return x.c});
+    if(q.length>=2&&!res.some(function(c){return c.name===q}))res.push({name:q,description:'Custom command: Pelex works out what you mean',implemented:true,custom:true});
+    return res}
+  function place(){var r=input.getBoundingClientRect();menu.style.left=Math.max(8,r.left)+'px';menu.style.width=Math.min(560,Math.max(260,r.width))+'px';menu.style.bottom=(window.innerHeight-r.top+8)+'px'}
+  function render(){
+    menu.innerHTML='';
+    shown.forEach(function(c,i){
+      var d=document.createElement('div');d.className='sm-item'+(i===sel?' on':'')+(c.implemented===false?' off':'');d.setAttribute('role','option');
+      var n=document.createElement('b');n.textContent='/'+c.name;var sp=document.createElement('span');sp.textContent=c.description||'';d.appendChild(n);d.appendChild(sp);
+      if(c.implemented===false){var t=document.createElement('em');t.textContent='not connected yet';d.appendChild(t)}
+      d.onmousedown=function(e){e.preventDefault()};d.onclick=function(){pick(i)};menu.appendChild(d)});
+    var on=menu.querySelector('.on');if(on&&on.scrollIntoView)on.scrollIntoView({block:'nearest'})}
+  function hide(){menu.hidden=true;sel=0}
+  function update(){
+    var m=/^\/([a-zA-Z0-9_-]*)$/.exec(input.value);if(!m){hide();return}
+    load();shown=match(m[1]);if(!shown.length){hide();return}
+    if(sel>=shown.length)sel=0;place();menu.hidden=false;render()}
+  function pick(i){var c=shown[i];if(!c)return;input.value='/'+c.name+' ';hide();input.focus();try{input.dispatchEvent(new Event('input',{bubbles:true}))}catch(e){}}
+  input.addEventListener('input',update);
+  input.addEventListener('keydown',function(e){
+    if(menu.hidden||!shown.length)return;
+    if(e.key==='ArrowDown'){sel=(sel+1)%shown.length;render();e.preventDefault();e.stopImmediatePropagation()}
+    else if(e.key==='ArrowUp'){sel=(sel-1+shown.length)%shown.length;render();e.preventDefault();e.stopImmediatePropagation()}
+    else if(e.key==='Enter'||e.key==='Tab'){
+      if(e.key==='Enter'&&input.value.trim()==='/'+shown[sel].name){hide();return}   // already typed in full: let it send
+      e.preventDefault();e.stopImmediatePropagation();pick(sel)}
+    else if(e.key==='Escape'){hide();e.stopImmediatePropagation()}},true);
+  input.addEventListener('blur',function(){setTimeout(hide,150)});
+  window.addEventListener('resize',function(){if(!menu.hidden)place()});
+})();
+</script>
+<script>
+(function(){
+  // ---- status from the backend: badges, banners, channel options update by themselves ----
+  var st=null;
+  function base(){return (typeof AGENT_URL==='string'&&AGENT_URL.indexOf('PASTE_')!==0)?AGENT_URL.replace(/\/+$/,''):''}
+  function apply(){
+    if(!st)return;var f=st.features||{},a=st.agents||{},c=st.channels||{};
+    [].forEach.call(document.querySelectorAll('.badge[data-feat]'),function(b){var k=b.getAttribute('data-feat');b.hidden=(f[k]===true)});
+    [].forEach.call(document.querySelectorAll('.abanner[data-agent]'),function(b){
+      var k=b.getAttribute('data-agent'),ag=a[k];if(!ag){b.hidden=true;return}
+      if(ag.ready){b.hidden=true}else{b.textContent=ag.label+' is being connected. This screen turns on by itself as soon as it is ready, so there is nothing for you to do.';b.hidden=false}});
+    [].forEach.call(document.querySelectorAll('option[data-chan]'),function(o){var k=o.getAttribute('data-chan');o.disabled=!(c[k]&&c[k].ready)});
+    var bs=document.getElementById('bSend');if(bs&&a.business)bs.disabled=!a.business.ready;
+    var gc=document.getElementById('gmConnect');if(gc&&a.gmail){gc.disabled=!a.gmail.ready}
+    window.__status=st}
+  function load(){var b=base();if(!b)return;fetch(b+'/commands').then(function(r){return r.ok?r.json():null}).then(function(j){if(j&&j.agents){st=j;apply()}}).catch(function(){})}
+  setTimeout(load,1500);setInterval(load,300000);
+  window.pelexRefreshStatus=load;
+  if(typeof go==='function'){var _go=go;go=function(v,t){_go(v,t);if(v==='gmail'||v==='business'||v==='pitch'||v==='personal')setTimeout(apply,50)}}
+
+  // ---- arrow that jumps back to the newest message ----
+  var btn=document.createElement('button');btn.id='toBottom';btn.type='button';btn.hidden=true;btn.setAttribute('aria-label','Jump to the newest message');
+  btn.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>';document.body.appendChild(btn);
+  function scroller(){var e=document.getElementById('chat');while(e&&e!==document.body){var cs=getComputedStyle(e);if(/(auto|scroll)/.test(cs.overflowY)&&e.scrollHeight>e.clientHeight+5)return e;e=e.parentElement}return document.scrollingElement||document.documentElement}
+  window.__chatScroller=scroller;
+  function check(){var v=document.getElementById('v-chat');if(!v||v.hidden){btn.hidden=true;return}var s=scroller(),dist=s.scrollHeight-s.scrollTop-s.clientHeight;btn.hidden=!(dist>260)}
+  document.addEventListener('scroll',check,true);window.addEventListener('resize',check);setInterval(check,1000);
+  btn.onclick=function(){var s=scroller();try{s.scrollTo({top:s.scrollHeight,behavior:'smooth'})}catch(e){s.scrollTop=s.scrollHeight}setTimeout(check,600)};
+
+  // ---- Gmail writer: draft with AI, optional voice, open in Gmail to review and send ----
+  var $=function(i){return document.getElementById(i)},last='';
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition,rec=null;
+  if(SR&&$('gmMic')){$('gmMic').hidden=false;$('gmMic').onclick=function(){
+    if(rec){try{rec.stop()}catch(e){}return}
+    rec=new SR();rec.lang=(navigator.language||'en-US');rec.interimResults=false;rec.continuous=true;var b=$('gmMic');b.textContent='Stop';
+    rec.onresult=function(e){var t='';for(var i=e.resultIndex;i<e.results.length;i++)t+=e.results[i][0].transcript+' ';$('gmIdea').value=($('gmIdea').value+' '+t).trim()};
+    rec.onend=function(){rec=null;b.textContent='Speak'};rec.onerror=function(){rec=null;b.textContent='Speak'};try{rec.start()}catch(e){rec=null;b.textContent='Speak'}}}
+  async function draft(change){
+    var idea=$('gmIdea').value.trim();if(!idea&&!last){$('gmMsg').textContent='Tell me what the email is about first.';return}
+    if(!base()){$('gmMsg').textContent='The assistant is not connected yet.';return}
+    $('gmMsg').textContent='Writing...';$('gmDraft').disabled=true;
+    var p=change?('Here is an email draft:\n\n'+last+'\n\nRewrite it with this change: '+change+'\nKeep the same format: a line starting with "Subject:", a blank line, then the email body. Return only the email.')
+      :('Write a professional email for this request. Start with a line beginning "Subject:" and then a blank line and the email body. Add a clear call to action. Return only the email, ready to review. It is a draft: nothing is sent.\n\nRequest: '+idea);
+    try{var out=await askPublicAgent(p,Object.assign({},agentMeta(),{__sid:'gmail-'+sid}));last=String(out);var o=$('gmOut');o.innerHTML='';o.appendChild(window.mdRender(last));o.hidden=false;$('gmTools').style.display='flex';$('gmMsg').textContent='Review it, then open it in Gmail to send.'}
+    catch(e){$('gmMsg').textContent=(e&&!e.backend&&e.message)?e.message:'Could not write it right now. Please try again.'}
+    $('gmDraft').disabled=false}
+  if($('gmDraft')){$('gmDraft').onclick=function(){draft('')};
+    [].forEach.call(document.querySelectorAll('[data-gm]'),function(b){b.onclick=function(){draft(b.getAttribute('data-gm'))}});
+    $('gmCopy').onclick=function(){try{navigator.clipboard.writeText(last);$('gmMsg').textContent='Copied.'}catch(e){}};
+    $('gmOpen').onclick=function(){var m=/^\s*Subject:\s*(.+)$/mi.exec(last),su=m?m[1].trim():'',body=last.replace(/^\s*Subject:.*$/mi,'').trim().slice(0,1800);
+      window.open('https://mail.google.com/mail/?view=cm&fs=1&su='+encodeURIComponent(su)+'&body='+encodeURIComponent(body),'_blank','noopener')}}
+})();
+</script>
+<script>
+(function(){
+  var $=function(i){return document.getElementById(i)};
+  async function run(cmd){
+    var t=($('imgPrompt').value||'').trim();if(t.length<3){$('imgMsg').textContent='Describe the picture first.';return}
+    $('imgMsg').textContent=cmd==='/image'?'Creating your picture. This can take up to a minute...':'Looking for real examples...';$('imgCreate').disabled=$('imgFind').disabled=true;
+    try{var out=await askPublicAgent(cmd+' '+t,Object.assign({},agentMeta(),{__sid:'img-'+sid}));var o=$('imgOut');o.innerHTML='';o.appendChild(window.mdRender(String(out)));o.hidden=false;$('imgMsg').textContent='Pictures are kept for 2 days. Save the ones you want.'}
+    catch(e){$('imgMsg').textContent=(e&&!e.backend&&e.message)?e.message:'Could not do that right now. Please try again.'}
+    $('imgCreate').disabled=$('imgFind').disabled=false}
+  if($('imgCreate')){$('imgCreate').onclick=function(){run('/image')};$('imgFind').onclick=function(){run('/examples')}}
+})();
 </script>
 </body>
 </html>
