@@ -860,7 +860,7 @@ async function mediaStatus() {
   } catch (e) { log('media status check failed:', e.message); return 'unknown'; }
 }
 
-function imageReady() { const t = EXT.get('image_generate'); try { return !!(t && t.route().some(id => t.providers[id].ready())); } catch (e) { return false; } }
+function imageReady() { const t = EXT.get('image_generate'); return !!(t && ENV.CF_ACCOUNT_ID && ENV.CF_API_TOKEN || t && (ENV.HF_TOKEN || ENV.HUGGINGFACE_API_KEY)); }
 function loadJobs() {
   if (ENV.DISABLE_JOBS === '1' || !sbOn()) return;
   const fs = require('fs'), path = require('path'); let files = []; try { files = fs.readdirSync(path.join(__dirname, 'jobs')).filter(f => f.endsWith('.js')).sort(); } catch (e) { return; }
