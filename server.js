@@ -699,13 +699,13 @@ const esc = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&a
 async function sendEmail({ to, subject, html, text, from, idempotencyKey }) {
   if (!CFG.lockallyKey) throw new Error('Email is not set up (LOCKALLY_API_KEY missing).');
   const recipient = clip(to, 200).trim();
-  if (!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(recipient)) throw new Error('A valid email recipient is required.');
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(recipient)) throw new Error('A valid email recipient is required.');
   const payload = { from: from || CFG.emailFrom, to: [recipient], subject: clip(subject, 180), html: String(html || ''), text: String(text || '') };
   if (!payload.html && !payload.text) throw new Error('Email content is empty.');
   const stableKey = clip(idempotencyKey || ('pelex-' + crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex')), 255);
   const t = withTimeout(15000); let r;
   try {
-    r = await fetch(CFG.lockallyUrl.replace(/\\/+$/, '') + '/send', {
+    r = await fetch(CFG.lockallyUrl.replace(/\/+$/, '') + '/send', {
       method: 'POST', signal: t.signal,
       headers: { Authorization: 'Bearer ' + CFG.lockallyKey, 'Content-Type': 'application/json', 'Idempotency-Key': stableKey },
       body: JSON.stringify(payload)
