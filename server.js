@@ -85,6 +85,28 @@ const clip = (s, n) => { s = String(s == null ? '' : s); return s.length > n ? s
 const cleanSid = s => clip(String(s || '').replace(/[^a-zA-Z0-9_\-:.]/g, ''), 80) || 'anon';
 function withTimeout(ms) { const c = new AbortController(); const t = setTimeout(() => c.abort(), ms); return { signal: c.signal, done: () => clearTimeout(t) }; }
 
+/* ---------------- client conversation history ----------------
+   Accept only plain user/assistant text from the browser. Bound both the
+   number of turns and total characters before passing it to the model. */
+function sanitizeHistory(value, currentText) {
+  if (!Array.isArray(value)) return [];
+  const out = [];
+  let total = 0;
+  for (const item of value.slice(-30)) {
+    if (!item || typeof item !== 'object') continue;
+    const role = item.role === 'assistant' || item.role === 'user' ? item.role : null;
+    if (!role || typeof item.content !== 'string') continue;
+    const content = item.content.replace(/\\u0000/g, '').trim().slice(0, 12000);
+    if (!content) continue;
+    // The current message is sent separately to the model below.
+    if (role === 'user' && currentText && content === String(currentText).trim()) continue;
+    if (total + content.length > 36000) break;
+    out.push({ role, content });
+    total += content.length;
+  }
+  return out;
+}
+
 /* ---------------- rate limits (in memory; fine for one instance) ---------------- */
 const buckets = new Map();
 function allow(key, max, windowMs) {
