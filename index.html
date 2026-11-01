@@ -823,7 +823,7 @@ setTimeout(out,rm?500:4600);setTimeout(out,6500);sp.addEventListener('click',out
 </div></section>
 
 <section class="view" id="v-pitch" hidden><div class="wrap"><div class="abanner" data-agent="pitch" hidden></div>
-<h1>Pitch Agent</h1><div class="muted">Finds jobs and clients, writes in your tone, and asks you before anything is sent.</div>
+<h1>Pitch Agent</h1><button type="button" class="btn alt" data-schedule-agent="pitch" style="margin:10px 0">Schedule with Pitch Agent</button><div class="muted">Finds jobs and clients, writes in your tone, and asks you before anything is sent.</div>
 <div id="pMsg" class="muted" role="status" style="min-height:20px;margin-top:8px"></div>
 <div class="pfun" id="pFun"></div>
 <div class="qchips" id="pTabs"><button type="button" class="qchip on" data-t="inbox">Inbox</button><button type="button" class="qchip" data-t="check">Check a link</button><button type="button" class="qchip" data-t="profile">Profile</button><button type="button" class="qchip" data-t="sched">Schedule</button></div>
@@ -868,13 +868,13 @@ setTimeout(out,rm?500:4600);setTimeout(out,6500);sp.addEventListener('click',out
 </section>
 <div class="lp-toast" id="gToast" role="status" aria-live="polite" hidden></div>
 <section class="view" id="v-personal" hidden><div class="wrap">
-<div class="abanner" data-agent="personal" hidden></div><h1>Personal Bot</h1><div class="muted">Your own assistant. It remembers what matters to you, keeps your notes and tasks, and works with your email once Gmail is connected.</div>
+<div class="abanner" data-agent="personal" hidden></div><h1>Personal Bot</h1><button type="button" class="btn alt" data-schedule-agent="personal" style="margin:10px 0">Schedule with Personal Agent</button><div class="muted">Your own assistant. It remembers what matters to you, keeps your notes and tasks, and works with your email once Gmail is connected.</div>
 <div class="card" style="margin-top:18px"><h2>Status</h2><div id="pbStatus" class="muted">Checking...</div>
 <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px"><button class="btn" type="button" id="pbOpen" hidden>Open chat</button><button class="btn" type="button" data-plan="personal" id="pbStart" hidden>Start 2-day trial</button><button class="btn" type="button" data-go="plugins">Connect email</button></div></div>
 </div></section>
 <section class="view" id="v-gmail" hidden><div class="wrap">
 <div class="abanner" data-agent="gmail" hidden></div>
-<h1>Gmail Bot</h1><div class="muted">Write better emails with AI and voice. You always review a message before anything is sent.</div>
+<h1>Gmail Bot</h1><button type="button" class="btn alt" data-schedule-agent="mailbot" style="margin:10px 0">Schedule with Mailbot</button><div class="muted">Write better emails with AI and voice. You always review a message before anything is sent.</div>
 <div class="card" style="margin-top:18px"><h2>Write with AI</h2>
 <div class="muted">Say or type what the email is about. Pelex drafts it with a subject line, then you can improve it and open it in Gmail.</div>
 <textarea class="inp" id="gmIdea" rows="4" maxlength="1500" placeholder="For example: write to a possible business partner and propose a collaboration on a delivery app. Friendly but professional." style="margin-top:10px;width:100%"></textarea>
@@ -890,7 +890,7 @@ setTimeout(out,rm?500:4600);setTimeout(out,6500);sp.addEventListener('click',out
 <div class="muted">Pelex drafts for you to review and never sends on its own. Attachments and images are not read. Voice input uses your browser's speech service, which may send audio to your device maker. Sign-in tokens are kept on the server, never in your browser.</div></div>
 </div></section>
 <section class="view" id="v-business" hidden><div class="wrap"><div class="abanner" data-agent="business" hidden></div>
-<h1>Business Bot</h1><div class="muted">Tell Pelex about your business. Your bot answers customers in your tone and stays inside the limits you set.</div>
+<h1>Business Bot</h1><button type="button" class="btn alt" data-schedule-agent="business" style="margin:10px 0">Schedule with Business Agent</button><div class="muted">Tell Pelex about your business. Your bot answers customers in your tone and stays inside the limits you set.</div>
 <div class="card bgate" id="bGate" style="margin-top:18px" hidden><h2>Start the Business Bot plan first</h2><span class="muted">Switch the plan on, then set up your bot here.</span><button class="btn" type="button" data-plan="business">Start 2-day trial</button></div>
 <div id="bForm" hidden>
 <div class="pfield"><label for="bName">Business name</label><input class="inp" id="bName" maxlength="80" placeholder="For example: Ada's Bakery"></div>
@@ -2185,6 +2185,7 @@ async function loadTasks(){
     db.onclick=async function(){if(!confirm('Delete this scheduled task?'))return;await sb.from('scheduled_tasks').delete().eq('id',t.id);loadTasks()};
     a.appendChild(pb);a.appendChild(db);c.appendChild(a);box.appendChild(c)})
 }
+document.querySelectorAll('[data-schedule-agent]').forEach(function(b){b.addEventListener('click',function(){var id=b.getAttribute('data-schedule-agent');$('sBot').value=id;go('scheduled');var ready=id==='general';sMsg(ready?'General Agent is ready for scheduled tasks.': 'This agent is not connected to scheduled execution yet. You can review the task setup, but it cannot be saved until its runtime is connected.');$('sBot').dispatchEvent(new Event('change'));});});
 var MOVIE_RE=/\b(netflix|prime video|amazon prime|disney\+?|showmax|hulu|hbo|apple tv|movies?|films?|nollywood|series|tv shows?|trailers?|box office|streaming)\b/i;
 function movieGuard(){var f=$('sFreq'),t=$('sInstr').value+' '+($('sSrc')?$('sSrc').value:'');
   if(MOVIE_RE.test(t)&&(f.value==='daily'||f.value==='weekdays')){f.value='every2days';f.dispatchEvent(new Event('change'));sMsg('Movie and TV updates are checked every 2 days, so you get real news instead of repeats.');return true}return false}
