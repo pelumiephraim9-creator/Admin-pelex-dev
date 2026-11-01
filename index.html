@@ -738,7 +738,7 @@ strong,b{font-weight:600}
 @media(max-width:700px){#v-projects .wrap{padding-left:16px;padding-right:16px}#projectsGrid{grid-template-columns:1fr;gap:13px}#projectsGrid .project-card{min-height:0;padding:18px}.project-modal{padding:19px;border-radius:16px}.project-modal-actions button{flex:1}}
 @media(prefers-reduced-motion:reduce){#projectsGrid .project-card{transition:none}}
 
-</style>
+.file-card{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:14px 0;padding:13px;border:1px solid var(--line);border-radius:12px;background:var(--soft);white-space:normal}.file-card-info{display:flex;flex-direction:column;gap:4px;min-width:0}.file-card-info strong{font-size:13px;overflow-wrap:anywhere}.file-card-info span{font-size:11px;color:var(--muted)}.file-card-actions{display:flex;gap:7px}.file-card-actions a{padding:8px 12px;border:1px solid var(--line);border-radius:8px;text-decoration:none;color:inherit;background:var(--card);font-size:12px}@media(max-width:520px){.file-card-actions{width:100%}.file-card-actions a{flex:1;text-align:center}}</style>
 </head>
 <body>
 <div id="splash" aria-hidden="true"><div class="sg"></div><svg viewBox="0 0 40 40"><polygon class="hx" pathLength="1" points="20,3 35,11.5 35,28.5 20,37 5,28.5 5,11.5"/><circle class="nd" style="animation-delay:0.25s" cx="20" cy="3" r="2.2" fill="#5ec3e6"/><circle class="nd" style="animation-delay:0.37s" cx="35" cy="11.5" r="2.2" fill="var(--btn,#0a89f4)"/><circle class="nd" style="animation-delay:0.49s" cx="35" cy="28.5" r="2.2" fill="var(--btn,#0a89f4)"/><circle class="nd" style="animation-delay:0.61s" cx="20" cy="37" r="2.2" fill="#5ec3e6"/><circle class="nd" style="animation-delay:0.73s" cx="5" cy="28.5" r="2.2" fill="var(--btn,#0a89f4)"/><circle class="nd" style="animation-delay:0.85s" cx="5" cy="11.5" r="2.2" fill="var(--btn,#0a89f4)"/><rect class="bd" x="11" y="11" width="18" height="18" rx="5" fill="var(--btn,#0a89f4)"/><text class="pl" x="20" y="25" text-anchor="middle" font-size="13" font-weight="800" font-family="Segoe UI,system-ui,Arial,sans-serif" fill="var(--btnink,#fff)">P</text></svg><div class="wm">PELEX</div><div class="tg">Your AI assistant</div><div class="sbar"><i></i></div></div>
@@ -1207,6 +1207,21 @@ function add(t,cls,img,retryFn){try{if(typeof t==='string'&&t){var hh=(window.__
   }else{if(!cls&&window.mdRender)textNode.appendChild(window.mdRender(t));else textNode.textContent=t}
   if(!cls&&window.__lastSteps&&window.__lastSteps.length&&!window.__stepsDone){window.__stepsDone=true;var dt=document.createElement('details');dt.className='actlog';var sm=document.createElement('summary'),sn=window.__lastSteps.length;sm.textContent='Activity \u00b7 '+sn+(sn===1?' step':' steps');dt.appendChild(sm);window.__lastSteps.forEach(function(x){var r=document.createElement('div');r.textContent='\u2713 '+x;dt.appendChild(r)});d.appendChild(dt)}
   d.appendChild(textNode);
+  if(!cls&&typeof t==='string'){
+    var re=/\\[Download ([^\\]]+)\\]\\((https?:\\/\\/[^\\s)]+)\\)/gi, match, files=[];
+    while((match=re.exec(t))!==null)files.push({name:match[1],url:match[2]});
+    files.forEach(function(file){
+      var card=document.createElement('div');card.className='file-card';
+      var info=document.createElement('div');info.className='file-card-info';
+      var title=document.createElement('strong');title.textContent=file.name;
+      var label=document.createElement('span');label.textContent='Generated file';
+      info.appendChild(title);info.appendChild(label);
+      var actions=document.createElement('div');actions.className='file-card-actions';
+      ['Preview','Download'].forEach(function(label){var a=document.createElement('a');a.href=file.url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=label;if(label==='Download')a.download=file.name;actions.appendChild(a)});
+      card.appendChild(info);card.appendChild(actions);d.appendChild(card);
+    });
+  }
+
   if(!cls){ // bot reply: add copy / thumbs / retry row
     var row=document.createElement('div');row.className='msgactions';
     var cp=document.createElement('button');cp.setAttribute('aria-label','Copy');cp.textContent='Copy';
