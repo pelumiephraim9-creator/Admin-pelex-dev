@@ -209,7 +209,8 @@ async function saveFile({ name, mime, bytes, folder }) {
   const base = signedPath.startsWith('http') ? signedPath : CFG.sbUrl + '/storage/v1' + signedPath;
   const expires = Math.floor(Date.now() / 1000) + 172800;
   const signature = crypto.createHmac('sha256', CFG.signingSecret).update(path + '|' + safe + '|' + expires).digest('hex');
-  const downloadUrl = '/media/download?path=' + encodeURIComponent(path) + '&name=' + encodeURIComponent(safe) + '&expires=' + expires + '&sig=' + signature;
+  const downloadBase = String(ENV.PUBLIC_API_URL || ENV.BACKEND_PUBLIC_URL || 'https://pelexn8n.onrender.com').replace(/\\/+$/, '');
+  const downloadUrl = downloadBase + '/media/download?path=' + encodeURIComponent(path) + '&name=' + encodeURIComponent(safe) + '&expires=' + expires + '&sig=' + signature;
   return { url: base, downloadUrl, path, expiresIn: 172800 };
 }
 async function sbFetch(path, init) { const t = withTimeout(8000); try { return await fetch(CFG.sbUrl + path, { ...(init || {}), headers: { ...sbHead(), ...((init && init.headers) || {}) }, signal: t.signal }); } finally { t.done(); } }
