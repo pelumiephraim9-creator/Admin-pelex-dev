@@ -2188,7 +2188,7 @@ async function loadTasks(){
     }
     if(t.last_result){
       var lr=document.createElement('div');lr.className='res';if(window.mdRender)lr.appendChild(window.mdRender(t.last_result.slice(0,6000)));else lr.textContent=t.last_result.slice(0,600);c.appendChild(lr);
-      var ld=document.createElement('div');ld.className='meta';ld.textContent='Last result updated '+(t.last_run?new Date(t.last_run).toLocaleString([],{dateStyle:'medium',timeStyle:'short'}):'');c.appendChild(ld)
+      var ld=document.createElement('div');ld.className='meta';ld.textContent='Last run started '+(t.last_run?new Date(t.last_run).toLocaleString([],{dateStyle:'medium',timeStyle:'short'}):'');c.appendChild(ld)
     }
     var a=document.createElement('div');a.className='acts';
     if(!closed){
