@@ -32,7 +32,9 @@ async function deliver(ctx, row, result) {
   // explicitly configured adapter confirms delivery.
   const channel = ALLOWED_CHANNELS.has(String(row.channel || 'website').toLowerCase())
     ? String(row.channel || 'website').toLowerCase() : 'website';
-  if (channel === 'website') return { confirmed: false, result };
+  // Saving the result into the user's Pelex schedule is the website-inbox
+  // delivery. Mark it confirmed so the frontend can show its unread badge.
+  if (channel === 'website') return { confirmed: true, result };
   if (channel === 'telegram') {
     if (typeof ctx.deliverTelegram !== 'function' || !row.telegram_chat_id) {
       throw new Error('Telegram delivery is not configured for this scheduled task.');
@@ -49,12 +51,14 @@ async function deliver(ctx, row, result) {
 }
 async function processTask(ctx, row) {
   const token = row.claim_token;
-  if (!row.id || !token) throw new Error('Claimed task is missing its fencing token.');
-  if (!row.user_id) throw new Error('Scheduled task has no owner user_id.');
-  const bot = toCanonicalAgent(row.bot);
-  if (bot !== 'general') throw new Error(`Scheduled ${bot} agent is not implemented in the shared runtime yet; task was not run under the wrong agent.`);
-  if (!row.instruction || !String(row.instruction).trim()) throw new Error('Scheduled task has no instruction.');
   try {
+    // Keep all task-specific validation inside this handler. One bad task
+    // must not abort the rest of the batch or strand their claim locks.
+    if (!row.id || !token) throw new Error('Claimed task is missing its fencing token.');
+    if (!row.user_id) throw new Error('Scheduled task has no owner user_id.');
+    const bot = toCanonicalAgent(row.bot);
+    if (bot !== 'general') throw new Error(`Scheduled ${bot} agent is not implemented in the shared runtime yet; task was not run under the wrong agent.`);
+    if (!row.instruction || !String(row.instruction).trim()) throw new Error('Scheduled task has no instruction.');
     const output = await ctx.runAgent({
       sid: `sched-${row.id}`,
       text: `Execute this scheduled task. Produce the complete result, with sources where appropriate. Do not claim an external action was completed unless a connected tool confirms it.\n\nTask: ${safeText(row.instruction, 6000)}`,
