@@ -10,7 +10,7 @@ const MIME = {
 
 module.exports = {
   name: 'document_tool',
-  description: 'Create a real downloadable text, Markdown, JSON, CSV, or standalone HTML document. Use this for substantial written deliverables when a supported format is appropriate. Files are saved through the shared Pelex file storage and returned with a time-limited download link.',
+  description: 'Create a professional document in TXT, Markdown, JSON, CSV, or standalone HTML. For reports, proposals, market analyses, and documents that should open as a readable page inside the browser, choose format html and provide a complete HTML document with embedded responsive CSS (not Markdown, plain text, or fenced code). If the conversation contains a chart image URL, embed it in the HTML using an <img src="..."> element with responsive sizing and a useful alt description. Return both a browser preview and a separate download link. Files are stored securely in Pelex storage for 48 hours.',
   parameters: {
     type: 'object',
     properties: {
@@ -37,7 +37,7 @@ module.exports = {
     const file = await ctx.saveFile({ name, mime: MIME[format], bytes: Buffer.from(content, 'utf8'), folder: 'files' });
     return {
       text: 'Created ' + name + ' (' + Buffer.byteLength(content, 'utf8') + ' bytes). The secure download link is ready for the user and expires after 48 hours.',
-      markdown: '[Download ' + name + '](' + file.downloadUrl + ')'
+      markdown: '[Preview ' + name + '](' + file.url + ')\n\n[Download ' + name + '](' + file.downloadUrl + ')'
     };
   }
 };
