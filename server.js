@@ -191,7 +191,7 @@ async function saveFile({ name, mime, bytes, folder }) {
   // Public-facing media URLs stay on Pelex. Storage credentials and provider URLs never leave the server.
   const expires = Math.floor(Date.now() / 1000) + 172800;
   const signature = crypto.createHmac('sha256', CFG.signingSecret).update(path + '|' + safe + '|' + expires).digest('hex');
-  const base = String(ENV.PUBLIC_API_URL || ENV.BACKEND_PUBLIC_URL || 'https://admin-pelex-dev.pelumiephraim9.workers.dev').replace(/\\/+$/, '');
+  const base = String(ENV.PUBLIC_API_URL || ENV.BACKEND_PUBLIC_URL || 'https://admin-pelex-dev.pelumiephraim9.workers.dev').replace(/\/+$/, '');
   const query = '?path=' + encodeURIComponent(path) + '&name=' + encodeURIComponent(safe) + '&expires=' + expires + '&sig=' + signature;
   return { url: base + '/media/download' + query + '&view=1', downloadUrl: base + '/media/download' + query, expiresIn: 172800 };
 }
