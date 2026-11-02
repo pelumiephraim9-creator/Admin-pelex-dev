@@ -10,7 +10,7 @@ const MIME = {
 
 module.exports = {
   name: 'document_tool',
-  description: 'Create a professional document in TXT, Markdown, JSON, CSV, or standalone HTML. For reports, proposals, market analyses, and documents that should open as a readable page inside the browser, choose format html and provide a complete HTML document with embedded responsive CSS (not Markdown, plain text, or fenced code). If the conversation contains a chart image URL, embed it in the HTML using an <img src="..."> element with responsive sizing and a useful alt description. Return both a browser preview and a separate download link. Files are stored securely in Pelex storage for 48 hours.',
+  description: 'Create a professional document in TXT, Markdown, JSON, CSV, or standalone HTML. For reports, proposals, market analyses, and documents that should open as a readable page inside the browser, choose format html and provide a complete HTML document with embedded responsive CSS (not Markdown, plain text, or fenced code). If the conversation contains a chart image URL, embed it in the HTML using an <img src="..."> element with responsive sizing and a useful alt description. Return both a browser preview and a separate download link. Generated files are available for 2 days.',
   parameters: {
     type: 'object',
     properties: {
