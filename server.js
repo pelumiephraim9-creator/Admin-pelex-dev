@@ -538,7 +538,7 @@ Object.assign(CFG, {
   cfModel: String(ENV.CF_MODELS || ENV.CF_MODEL || '@cf/meta/llama-3.3-70b-instruct-fp8-fast').split(',')[0].trim(),
   mistralKey: ENV.MISTRAL_API_KEY || '', mistralBase: ENV.MISTRAL_BASE || 'https://api.mistral.ai/v1', mistralModel: ENV.MISTRAL_MODEL || 'mistral-large-latest', mistralCodeModel: ENV.MISTRAL_CODE_MODEL || ENV.MISTRAL_MODEL || 'codestral-latest',
   sambaKey: ENV.SAMBANOVA_API_KEY || '', sambaBase: ENV.SAMBANOVA_BASE || 'https://api.sambanova.ai/v1', sambaModels: String(ENV.SAMBANOVA_MODELS || ENV.SAMBANOVA_MODEL || 'Meta-Llama-3.3-70B-Instruct,Qwen3-32B').split(',').map(x => x.trim()).filter(Boolean), sambaModel: String(ENV.SAMBANOVA_MODELS || ENV.SAMBANOVA_MODEL || 'Meta-Llama-3.3-70B-Instruct').split(',')[0].trim(),
-  claudeKey: ENV.ANTHROPIC_API_KEY || '', claudeBase: ENV.ANTHROPIC_BASE || 'https://api.anthropic.com', claudeModel: ENV.CLAUDE_MODEL || 'claude-haiku-5-5', claudeDaily: +ENV.CLAUDE_DAILY_MAX || 200,
+  claudeKey: ENV.ANTHROPIC_API_KEY || '', claudeBase: ENV.ANTHROPIC_BASE || 'https://api.anthropic.com', claudeModels: String(ENV.CLAUDE_MODELS || ENV.CLAUDE_MODEL || 'claude-haiku-5-5,claude-sonnet-5-5').split(',').map(x => x.trim()).filter(Boolean), claudeModel: String(ENV.CLAUDE_MODELS || ENV.CLAUDE_MODEL || 'claude-haiku-5-5').split(',')[0].trim(), claudeWorkspaceId: ENV.ANTHROPIC_WORKSPACE_ID || '', claudeDaily: +ENV.CLAUDE_DAILY_MAX || 200,
   geminiKey: ENV.GEMINI_API_KEY || '', geminiBase: ENV.GEMINI_BASE || 'https://generativelanguage.googleapis.com/v1beta/openai', geminiModels: String(ENV.GEMINI_MODELS || ENV.GEMINI_MODEL || 'gemini-3.8-flash,gemini-3.5-flash-lite').split(',').map(x => x.trim()).filter(Boolean), geminiModel: String(ENV.GEMINI_MODELS || ENV.GEMINI_MODEL || 'gemini-3.8-flash').split(',')[0].trim(),
   cfBase: ENV.CF_AI_BASE || `https://api.cloudflare.com/client/v4/accounts/${ENV.CF_ACCOUNT_ID || 'x'}/ai/v1`,
 });
@@ -556,7 +556,7 @@ function buildProvider(id, task) {
   if (id === 'gemini') return CFG.geminiKey ? CFG.geminiModels.map(m => oai(id, CFG.geminiBase, CFG.geminiKey, m)[0]) : [];
   if (id === 'mistral') return CFG.mistralKey && !vision ? oai(id, CFG.mistralBase, CFG.mistralKey, code ? CFG.mistralCodeModel : CFG.mistralModel) : [];
   if (id === 'sambanova') return CFG.sambaKey && !vision ? CFG.sambaModels.map(m => oai(id, CFG.sambaBase, CFG.sambaKey, m)[0]) : [];
-  if (id === 'claude') return CFG.claudeKey ? [{ id, kind: 'anthropic', name: 'claude:' + CFG.claudeModel, url: CFG.claudeBase + '/v1/messages', key: CFG.claudeKey, model: CFG.claudeModel, extra: {} }] : [];
+  if (id === 'claude') return CFG.claudeKey ? CFG.claudeModels.map(m => ({ id, kind: 'anthropic', name: 'claude:' + m, url: CFG.claudeBase + '/v1/messages', key: CFG.claudeKey, model: m, extra: {} })) : [];
   return [];
 }
 function chain(task, privacy) {
@@ -597,7 +597,7 @@ async function callOne(p, messages, withTools) {
   try {
     if (p.kind === 'anthropic') {
       const a = toAnthropic(messages, withTools);
-      r = await fetch(p.url, { method: 'POST', signal: t.signal, headers: { 'x-api-key': p.key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' }, body: JSON.stringify({ model: p.model, max_tokens: 2500, temperature: 0.6, system: a.system, messages: a.messages, ...(a.tools ? { tools: a.tools } : {}) }) });
+      r = await fetch(p.url, { method: 'POST', signal: t.signal, headers: { 'x-api-key': p.key, 'anthropic-version': ENV.ANTHROPIC_VERSION || '2023-06-01', 'Content-Type': 'application/json', ...(CFG.claudeWorkspaceId ? { 'anthropic-workspace-id': CFG.claudeWorkspaceId } : {}) }, body: JSON.stringify({ model: p.model, max_tokens: 2500, temperature: 0.6, system: a.system, messages: a.messages, ...(a.tools ? { tools: a.tools } : {}) }) });
     } else {
       const body = { model: p.model, messages, temperature: 0.6, max_tokens: 2500 };
       if (withTools) { body.tools = tools(); body.tool_choice = 'auto'; }
