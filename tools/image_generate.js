@@ -83,6 +83,6 @@ module.exports={
   if(!img) throw new Error('Image generation is unavailable. '+errors.join(' | '));
   const ext=img.mime==='image/png'?'png':img.mime==='image/webp'?'webp':'jpg';
   const file=await ctx.saveFile({name:'pelex-image.'+ext,mime:img.mime,bytes:img.bytes,folder:'images'});
-  return {text:'Your image has been generated successfully by Pelex and will be available for 2 days.',markdown:`![Your Pelex image](${file.url})\n\n[Download image](${file.downloadUrl})`};
+  return {text:'Your image has been generated successfully by Pelex and will be available for 2 days.',markdown:`![Your Pelex image](${file.url})`};
  }
 };
