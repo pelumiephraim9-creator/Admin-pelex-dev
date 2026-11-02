@@ -80,6 +80,7 @@ async function processTask(ctx, row) {
       // RPC may return a scalar boolean depending on PostgREST configuration.
       if (ok !== true) throw new Error('Completion was rejected; task may have been reclaimed by another worker.');
     }
+    ctx.log('scheduled task completed:', row.id, 'channel:', row.channel || 'website', 'frequency:', row.frequency);
   } catch (err) {
     ctx.log('scheduled task failed:', row.id, err.message);
     try {
@@ -102,7 +103,11 @@ async function tick(ctx) {
       p_limit: 3, p_lock_seconds: 300
     });
     if (!Array.isArray(rows) || !rows.length) return;
-    for (const row of rows) await processTask(ctx, row);
+    ctx.log('scheduler claimed tasks:', rows.length);
+    for (const row of rows) {
+      ctx.log('scheduled task started:', row.id, 'owner:', row.user_id, 'frequency:', row.frequency);
+      await processTask(ctx, row);
+    }
   } catch (e) {
     ctx.log('scheduler tick failed:', e.message);
   } finally { running = false; }
