@@ -2146,10 +2146,15 @@ $('newProjectBtn').onclick=function(){
 var FREQ={daily:'Every day',weekdays:'Weekdays',weekly:'Every week',every2days:'Every 2 days',every3days:'Every 3 days',biweekly:'Every 2 weeks',monthly:'Every month',once:'Once'};
 function sMsg(t,bad){var m=$('sMsg');m.textContent=t||'';m.style.color=bad?'#b3261e':''}
 function nextRunFrom(freq,time,day){
-  var p=String(time||'08:00').split(':'),d=new Date();d.setHours(+p[0]||0,+p[1]||0,0,0);
+  var p=String(time||'08:00').split(':'),now=new Date(),d=new Date(now);
+  d.setHours(Number(p[0])||0,Number(p[1])||0,0,0);
   var wk=(freq==='weekly'||freq==='biweekly');
-  if(wk)d.setDate(d.getDate()+((+day-d.getDay()+7)%7));
-  if(d<=new Date())d.setDate(d.getDate()+(wk?7:1));
+  if(wk)d.setDate(d.getDate()+((Number(day)-d.getDay()+7)%7));
+  if(freq==='monthly'){
+    var targetDay=now.getDate(),month=new Date(now.getFullYear(),now.getMonth()+1,1);
+    var lastDay=new Date(month.getFullYear(),month.getMonth()+1,0).getDate();
+    d=new Date(month.getFullYear(),month.getMonth(),Math.min(targetDay,lastDay),Number(p[0])||0,Number(p[1])||0,0,0);
+  }else if(d<=now)d.setDate(d.getDate()+(wk?7:1));
   if(freq==='weekdays'){while(d.getDay()===0||d.getDay()===6)d.setDate(d.getDate()+1)}
   return d.toISOString();
 }
@@ -2165,25 +2170,35 @@ async function loadTasks(){
   var box=$('sList'),em=$('sEmpty');
   if(!dbOk()){box.innerHTML='';em.hidden=false;em.textContent='Sign in to schedule tasks.';return}
   var r=await sb.from('scheduled_tasks').select('*').order('created_at',{ascending:false});
-  if(r.error)return;
+  if(r.error){em.hidden=false;em.textContent='Could not load scheduled tasks: '+(r.error.message||'Please refresh and try again.');return}
   var list=r.data||[];box.innerHTML='';em.hidden=list.length>0;em.textContent='Nothing scheduled yet.';
   list.forEach(function(t){
-    var c=document.createElement('div');c.className='stask'+(t.active?'':' off');
+    var status=String(t.status||'scheduled').toLowerCase(),closed=status==='closed';
+    var state=closed?(t.last_error?'Failed':(t.last_result?'Completed':'Closed')):(!t.active?'Paused':(status==='running'?'Running':'Scheduled'));
+    var c=document.createElement('div');c.className='stask'+(!t.active||closed?' off':'');
     var h=document.createElement('strong');h.textContent=t.instruction;c.appendChild(h);
     var nx=t.next_run?new Date(t.next_run):null;
-    var when=(FREQ[t.frequency]||t.frequency)+(nx?' at '+nx.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'');
+    var when=(FREQ[t.frequency]||t.frequency)+(nx?' · '+nx.toLocaleString([],{dateStyle:'medium',timeStyle:'short'}):'');
     var meta=document.createElement('div');meta.className='meta';
-    meta.textContent=when+' · '+(t.channel==='website'?'sent to this app':'sent to '+t.channel)+(t.active&&nx?' · next '+nx.toLocaleDateString([],{weekday:'short',day:'numeric',month:'short'}):' · paused');
+    meta.textContent='Status: '+state+' · '+when+' · '+(t.channel==='website'?'Website inbox':t.channel);
     c.appendChild(meta);
+    if(t.last_error){
+      var er=document.createElement('div');er.className='meta';er.style.color='#b3261e';er.textContent='Last error: '+t.last_error;c.appendChild(er);
+      var attempts=document.createElement('div');attempts.className='meta';attempts.textContent='Attempts: '+(Number(t.attempts)||0);c.appendChild(attempts);
+    }
     if(t.last_result){
       var lr=document.createElement('div');lr.className='res';if(window.mdRender)lr.appendChild(window.mdRender(t.last_result.slice(0,6000)));else lr.textContent=t.last_result.slice(0,600);c.appendChild(lr);
-      var ld=document.createElement('div');ld.className='meta';ld.textContent='Last sent '+(t.delivered_at?new Date(t.delivered_at).toLocaleString([],{dateStyle:'medium',timeStyle:'short'}):'');c.appendChild(ld)}
+      var ld=document.createElement('div');ld.className='meta';ld.textContent='Last result updated '+(t.last_run?new Date(t.last_run).toLocaleString([],{dateStyle:'medium',timeStyle:'short'}):'');c.appendChild(ld)
+    }
     var a=document.createElement('div');a.className='acts';
-    var pb=document.createElement('button');pb.className='btn alt';pb.textContent=t.active?'Pause':'Resume';
-    pb.onclick=async function(){pb.disabled=true;await sb.from('scheduled_tasks').update({active:!t.active}).eq('id',t.id);loadTasks()};
+    if(!closed){
+      var pb=document.createElement('button');pb.className='btn alt';pb.textContent=t.active?'Pause':'Resume';
+      pb.onclick=async function(){pb.disabled=true;var changed=await sb.from('scheduled_tasks').update({active:!t.active}).eq('id',t.id);if(changed.error){sMsg('Could not update this task: '+changed.error.message,true);pb.disabled=false;return}loadTasks()};
+      a.appendChild(pb);
+    }
     var db=document.createElement('button');db.className='btn alt';db.textContent='Delete';
-    db.onclick=async function(){if(!confirm('Delete this scheduled task?'))return;await sb.from('scheduled_tasks').delete().eq('id',t.id);loadTasks()};
-    a.appendChild(pb);a.appendChild(db);c.appendChild(a);box.appendChild(c)})
+    db.onclick=async function(){if(!confirm('Delete this scheduled task?'))return;var removed=await sb.from('scheduled_tasks').delete().eq('id',t.id);if(removed.error){sMsg('Could not delete this task: '+removed.error.message,true);return}loadTasks()};
+    a.appendChild(db);c.appendChild(a);box.appendChild(c)})
 }
 document.querySelectorAll('[data-schedule-agent]').forEach(function(b){b.addEventListener('click',function(){var id=b.getAttribute('data-schedule-agent');$('sBot').value=id;go('scheduled');var ready=id==='general';sMsg(ready?'General Agent is ready for scheduled tasks.': 'This agent is not connected to scheduled execution yet. You can review the task setup, but it cannot be saved until its runtime is connected.');$('sBot').dispatchEvent(new Event('change'));});});
 var MOVIE_RE=/\b(netflix|prime video|amazon prime|disney\+?|showmax|hulu|hbo|apple tv|movies?|films?|nollywood|series|tv shows?|trailers?|box office|streaming)\b/i;
@@ -2199,7 +2214,7 @@ $('sAdd').onclick=async function(){
   var btn=this;btn.disabled=true;sMsg('Saving...');
   var selectedBot=$('sBot').value;if(selectedBot!=='general'){btn.disabled=false;sMsg('That agent is not connected to scheduled execution yet. Choose General Agent for now.',true);return}var r=await sb.from('scheduled_tasks').insert({bot:selectedBot,instruction:ins,frequency:f,channel:$('sChan').value,next_run:nextRunFrom(f,$('sTime').value,$('sDay').value),user_name:userDisplay(curUser),timezone:tz});
   btn.disabled=false;
-  if(r.error){sMsg('Could not save that. Please try again.',true);return}
+  if(r.error){sMsg('Could not save that: '+(r.error.message||'Please try again.'),true);return}
   $('sInstr').value='';$('sSrc').value='';document.querySelectorAll('#sChips .qchip').forEach(function(x){x.classList.remove('on')});sMsg(f==='every2days'&&MOVIE_RE.test(ins)?'Added. Movie and TV updates are checked every 2 days.':'Added to your schedule.');loadTasks();
 };
 
