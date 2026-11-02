@@ -207,7 +207,9 @@ async function saveFile({ name, mime, bytes, folder }) {
   const signedPath = signedData.signedURL || signedData.signedUrl;
   if (!signedPath) throw new Error('File saved, but storage did not return a download link.');
   const base = signedPath.startsWith('http') ? signedPath : CFG.sbUrl + '/storage/v1' + signedPath;
-  const downloadUrl = base + (base.includes('?') ? '&' : '?') + 'download=' + encodeURIComponent(safe);
+  const expires = Math.floor(Date.now() / 1000) + 172800;
+  const signature = crypto.createHmac('sha256', CFG.signingSecret).update(path + '|' + safe + '|' + expires).digest('hex');
+  const downloadUrl = '/media/download?path=' + encodeURIComponent(path) + '&name=' + encodeURIComponent(safe) + '&expires=' + expires + '&sig=' + signature;
   return { url: base, downloadUrl, path, expiresIn: 172800 };
 }
 async function sbFetch(path, init) { const t = withTimeout(8000); try { return await fetch(CFG.sbUrl + path, { ...(init || {}), headers: { ...sbHead(), ...((init && init.headers) || {}) }, signal: t.signal }); } finally { t.done(); } }
@@ -1004,6 +1006,22 @@ const server = http.createServer(async (req, res) => {
       if (CFG.requireAuth && !originOk(req)) return send(res, 403, { error: 'This address only works from the Pelex site.' });
     }
     if (req.method === 'POST' && path === '/auth/guest') return await handleGuest(req, res);
+    if (req.method === 'GET' && path === '/media/download') {
+      const q = new URL(req.url, 'http://x').searchParams;
+      const objectPath = q.get('path') || '', name = q.get('name') || 'pelex-file', expires = Number(q.get('expires') || 0), sig = q.get('sig') || '';
+      if (!/^(images|files)\\/[A-Za-z0-9._-]{1,220}$/.test(objectPath) || !/^[A-Za-z0-9._-]{1,80}$/.test(name) || !Number.isInteger(expires) || expires < Math.floor(Date.now()/1000) || expires > Math.floor(Date.now()/1000)+172801) return send(res, 403, { error: 'This download link has expired or is invalid.' });
+      const expected = crypto.createHmac('sha256', CFG.signingSecret).update(objectPath + '|' + name + '|' + expires).digest('hex');
+      if (!/^[a-f0-9]{64}$/i.test(sig) || !safeEq(expected, sig)) return send(res, 403, { error: 'This download link is invalid.' });
+      if (!sbOn()) return send(res, 503, { error: 'File storage is temporarily unavailable.' });
+      const t = withTimeout(30000); let file;
+      try { file = await fetch(`${CFG.sbUrl}/storage/v1/object/${BUCKET}/${objectPath}`, { headers: { apikey: CFG.sbKey, Authorization: 'Bearer ' + CFG.sbKey }, signal: t.signal }); }
+      finally { t.done(); }
+      if (!file.ok) return send(res, file.status === 404 ? 404 : 502, { error: 'The saved file could not be retrieved.' });
+      const mime = file.headers.get('content-type') || 'application/octet-stream';
+      const bytes = Buffer.from(await file.arrayBuffer());
+      res.writeHead(200, { 'Content-Type': mime, 'Content-Length': bytes.length, 'Content-Disposition': 'attachment; filename="' + name.replace(/["\\\\]/g, '_') + '"', 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' });
+      return res.end(bytes);
+    }
     if (req.method === 'GET' && path === '/health') return send(res, 200, { ok: true, auth: { required: CFG.requireAuth, edge: !!CFG.edgeSecret, guest: !!CFG.turnstileSecret }, models: providers().map(p => p.name), chains: Object.fromEntries(['general', 'coding', 'data', 'vision'].map(t => [t, [...new Set(chain(t, 'public').map(p => p.id))]])), usage, claudeToday: claudeUse.n, slashCommands: COMMANDS ? COMMANDS.count : 0, providersConfigured: { groq: !!CFG.groqKey, openrouter: !!CFG.orKey, cloudflare: !!(ENV.CF_ACCOUNT_ID && ENV.CF_API_TOKEN), gemini: !!CFG.geminiKey, sambanova: !!CFG.sambaKey, claude: !!CFG.claudeKey, mistral: !!CFG.mistralKey }, memory: sbOn(), memoryTable: await memoryStatus(), mediaBucket: await mediaStatus(), search: !!CFG.serper, files: sbOn(), extraTools: [...EXT.keys()] });
     if (req.method === 'POST' && (path === '/chat' || path === '/')) return await handleChat(req, res, false);
     if (req.method === 'POST' && path === '/chat/stream') return await handleChat(req, res, true);
