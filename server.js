@@ -46,7 +46,7 @@ const CFG = {
   orKey: ENV.OPENROUTER_API_KEY || '',
   orModels: (ENV.OPENROUTER_MODELS || 'openrouter/free').split(',').map(s => s.trim()).filter(Boolean),
   groqKey: ENV.GROQ_API_KEY || '',
-  groqModels: String(ENV.GROQ_MODEL || 'openai/gpt-oss-120b,llama-3.3-70b-versatile,openai/gpt-oss-20b').split(',').map(x => x.trim()).filter(Boolean), groqModel: String(ENV.GROQ_MODEL || 'openai/gpt-oss-120b').split(',')[0].trim(),
+  groqModels: String(ENV.GROQ_MODELS || ENV.GROQ_MODEL || 'openai/gpt-oss-120b,openai/gpt-oss-20b').split(',').map(x => x.trim()).filter(Boolean), groqModel: String(ENV.GROQ_MODELS || ENV.GROQ_MODEL || 'openai/gpt-oss-120b').split(',')[0].trim(),
   sbUrl: (ENV.SUPABASE_URL || '').replace(/\/+$/, ''),
   sbKey: ENV.SUPABASE_SERVICE_KEY || '',
   serper: ENV.SERPER_API_KEY || '',
@@ -534,11 +534,12 @@ const PRIVATE_OK = new Set((ENV.PRIVATE_PROVIDERS || 'groq,cloudflare,sambanova,
 const DEFAULT_ROUTES = { general: 'groq,openrouter,cloudflare,gemini,sambanova,claude', coding: 'gemini,groq,openrouter,sambanova,cloudflare,claude', data: 'sambanova,groq,gemini,openrouter,cloudflare,claude', vision: 'gemini,openrouter,claude' };
 const routeOf = task => String(ENV['ROUTE_' + String(task).toUpperCase()] || DEFAULT_ROUTES[task] || DEFAULT_ROUTES.general).split(',').map(x => x.trim()).filter(Boolean);
 Object.assign(CFG, {
-  cfModel: ENV.CF_MODEL || '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+  cfModels: String(ENV.CF_MODELS || ENV.CF_MODEL || '@cf/meta/llama-3.3-70b-instruct-fp8-fast,@cf/qwen/qwen2.5-coder-32b-instruct,@cf/deepseek-ai/deepseek-r1-distill-qwen-32b').split(',').map(x => x.trim()).filter(Boolean),
+  cfModel: String(ENV.CF_MODELS || ENV.CF_MODEL || '@cf/meta/llama-3.3-70b-instruct-fp8-fast').split(',')[0].trim(),
   mistralKey: ENV.MISTRAL_API_KEY || '', mistralBase: ENV.MISTRAL_BASE || 'https://api.mistral.ai/v1', mistralModel: ENV.MISTRAL_MODEL || 'mistral-large-latest', mistralCodeModel: ENV.MISTRAL_CODE_MODEL || ENV.MISTRAL_MODEL || 'codestral-latest',
-  sambaKey: ENV.SAMBANOVA_API_KEY || '', sambaBase: ENV.SAMBANOVA_BASE || 'https://api.sambanova.ai/v1', sambaModel: ENV.SAMBANOVA_MODEL || 'Meta-Llama-3.3-70B-Instruct',
+  sambaKey: ENV.SAMBANOVA_API_KEY || '', sambaBase: ENV.SAMBANOVA_BASE || 'https://api.sambanova.ai/v1', sambaModels: String(ENV.SAMBANOVA_MODELS || ENV.SAMBANOVA_MODEL || 'Meta-Llama-3.3-70B-Instruct,Qwen3-32B').split(',').map(x => x.trim()).filter(Boolean), sambaModel: String(ENV.SAMBANOVA_MODELS || ENV.SAMBANOVA_MODEL || 'Meta-Llama-3.3-70B-Instruct').split(',')[0].trim(),
   claudeKey: ENV.ANTHROPIC_API_KEY || '', claudeBase: ENV.ANTHROPIC_BASE || 'https://api.anthropic.com', claudeModel: ENV.CLAUDE_MODEL || 'claude-haiku-5-5', claudeDaily: +ENV.CLAUDE_DAILY_MAX || 200,
-  geminiKey: ENV.GEMINI_API_KEY || '', geminiBase: ENV.GEMINI_BASE || 'https://generativelanguage.googleapis.com/v1beta/openai', geminiModel: ENV.GEMINI_MODEL || 'gemini-2.5-flash',
+  geminiKey: ENV.GEMINI_API_KEY || '', geminiBase: ENV.GEMINI_BASE || 'https://generativelanguage.googleapis.com/v1beta/openai', geminiModels: String(ENV.GEMINI_MODELS || ENV.GEMINI_MODEL || 'gemini-3.8-flash,gemini-3.5-flash-lite').split(',').map(x => x.trim()).filter(Boolean), geminiModel: String(ENV.GEMINI_MODELS || ENV.GEMINI_MODEL || 'gemini-3.8-flash').split(',')[0].trim(),
   cfBase: ENV.CF_AI_BASE || `https://api.cloudflare.com/client/v4/accounts/${ENV.CF_ACCOUNT_ID || 'x'}/ai/v1`,
 });
 const cooling = new Map(), usage = {}, claudeUse = { day: '', n: 0 };
@@ -551,10 +552,10 @@ function buildProvider(id, task) {
     const ms = vision && CFG.visionModels.length ? CFG.visionModels : code && CFG.codeModels.length ? CFG.codeModels.concat(CFG.orModels.filter(m => !CFG.codeModels.includes(m))) : CFG.orModels;
     return ms.map(m => oai(id, CFG.orBase, CFG.orKey, m, { 'HTTP-Referer': 'https://pelex.tech', 'X-Title': 'Pelex' })[0]);
   }
-  if (id === 'cloudflare') return ENV.CF_ACCOUNT_ID && ENV.CF_API_TOKEN && !vision ? oai(id, CFG.cfBase, ENV.CF_API_TOKEN, CFG.cfModel) : [];
-  if (id === 'gemini') return CFG.geminiKey ? oai(id, CFG.geminiBase, CFG.geminiKey, CFG.geminiModel) : [];
+  if (id === 'cloudflare') return ENV.CF_ACCOUNT_ID && ENV.CF_API_TOKEN && !vision ? CFG.cfModels.map(m => oai(id, CFG.cfBase, ENV.CF_API_TOKEN, m)[0]) : [];
+  if (id === 'gemini') return CFG.geminiKey ? CFG.geminiModels.map(m => oai(id, CFG.geminiBase, CFG.geminiKey, m)[0]) : [];
   if (id === 'mistral') return CFG.mistralKey && !vision ? oai(id, CFG.mistralBase, CFG.mistralKey, code ? CFG.mistralCodeModel : CFG.mistralModel) : [];
-  if (id === 'sambanova') return CFG.sambaKey && !vision ? oai(id, CFG.sambaBase, CFG.sambaKey, CFG.sambaModel) : [];
+  if (id === 'sambanova') return CFG.sambaKey && !vision ? CFG.sambaModels.map(m => oai(id, CFG.sambaBase, CFG.sambaKey, m)[0]) : [];
   if (id === 'claude') return CFG.claudeKey ? [{ id, kind: 'anthropic', name: 'claude:' + CFG.claudeModel, url: CFG.claudeBase + '/v1/messages', key: CFG.claudeKey, model: CFG.claudeModel, extra: {} }] : [];
   return [];
 }
@@ -627,8 +628,9 @@ async function callLLM(messages, withTools, opt) {
       catch (e) {
         last = e; log('model problem:', e.message); const st = e.status;
         if (st === 401 || st === 403 || st === 404) { cooling.set(p.name, Date.now() + 600000); break; }   // bad key or a model that no longer exists: skip for 10 minutes
-        if (st === 429) { cooling.set(p.name, Date.now() + 60000); break; }                // busy: next provider now
-        if (st && st < 500) break;                                                          // bad request: retrying will not help
+        if (st === 429 || st === 413) { cooling.set(p.name, Date.now() + 60000); break; } // rate/token capacity: skip this model briefly
+        if (st === 400) { cooling.set(p.name, Date.now() + 300000); break; }                 // invalid request/model configuration: avoid repeating it every turn
+        if (st && st < 500) { cooling.set(p.name, Date.now() + 600000); break; }             // client-side failure: cool down this model
         if (attempt === 1) cooling.set(p.name, Date.now() + 30000); else await new Promise(r => setTimeout(r, 500));
       }
     }
