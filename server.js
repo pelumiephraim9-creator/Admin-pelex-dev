@@ -1009,7 +1009,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && path === '/media/download') {
       const q = new URL(req.url, 'http://x').searchParams;
       const objectPath = q.get('path') || '', name = q.get('name') || 'pelex-file', expires = Number(q.get('expires') || 0), sig = q.get('sig') || '';
-      if (!/^(images|files)\\/[A-Za-z0-9._-]{1,220}$/.test(objectPath) || !/^[A-Za-z0-9._-]{1,80}$/.test(name) || !Number.isInteger(expires) || expires < Math.floor(Date.now()/1000) || expires > Math.floor(Date.now()/1000)+172801) return send(res, 403, { error: 'This download link has expired or is invalid.' });
+      if (!/^(images|files)\/[A-Za-z0-9._-]{1,220}$/.test(objectPath) || !/^[A-Za-z0-9._-]{1,80}$/.test(name) || !Number.isInteger(expires) || expires < Math.floor(Date.now()/1000) || expires > Math.floor(Date.now()/1000)+172801) return send(res, 403, { error: 'This download link has expired or is invalid.' });
       const expected = crypto.createHmac('sha256', CFG.signingSecret).update(objectPath + '|' + name + '|' + expires).digest('hex');
       if (!/^[a-f0-9]{64}$/i.test(sig) || !safeEq(expected, sig)) return send(res, 403, { error: 'This download link is invalid.' });
       if (!sbOn()) return send(res, 503, { error: 'File storage is temporarily unavailable.' });
