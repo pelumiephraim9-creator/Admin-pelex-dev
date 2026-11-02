@@ -1208,16 +1208,18 @@ function add(t,cls,img,retryFn){try{if(typeof t==='string'&&t){var hh=(window.__
   if(!cls&&window.__lastSteps&&window.__lastSteps.length&&!window.__stepsDone){window.__stepsDone=true;var dt=document.createElement('details');dt.className='actlog';var sm=document.createElement('summary'),sn=window.__lastSteps.length;sm.textContent='Activity \u00b7 '+sn+(sn===1?' step':' steps');dt.appendChild(sm);window.__lastSteps.forEach(function(x){var r=document.createElement('div');r.textContent='\u2713 '+x;dt.appendChild(r)});d.appendChild(dt)}
   d.appendChild(textNode);
   if(!cls&&typeof t==='string'){
-    var re=/\\[Download ([^\\]]+)\\]\\((https?:\\/\\/[^\\s)]+)\\)/gi, match, files=[];
-    while((match=re.exec(t))!==null)files.push({name:match[1],url:match[2]});
+    var dlRe=/\\[Download ([^\\]]+)\\]\\((https?:\\/\\/[^\\s)]+)\\)/gi, pvRe=/\\[Preview ([^\\]]+)\\]\\((https?:\\/\\/[^\\s)]+)\\)/gi, match, files=[];
+    while((match=dlRe.exec(t))!==null)files.push({name:match[1],downloadUrl:match[2],previewUrl:null});
+    while((match=pvRe.exec(t))!==null){var found=files.filter(function(f){return f.name===match[1]})[0];if(found)found.previewUrl=match[2];else files.push({name:match[1],previewUrl:match[2],downloadUrl:match[2]})}
     files.forEach(function(file){
       var card=document.createElement('div');card.className='file-card';
       var info=document.createElement('div');info.className='file-card-info';
       var title=document.createElement('strong');title.textContent=file.name;
-      var label=document.createElement('span');label.textContent='Generated file';
+      var label=document.createElement('span');label.textContent='Generated document';
       info.appendChild(title);info.appendChild(label);
       var actions=document.createElement('div');actions.className='file-card-actions';
-      ['Preview','Download'].forEach(function(label){var a=document.createElement('a');a.href=file.url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=label;if(label==='Download')a.download=file.name;actions.appendChild(a)});
+      var pv=document.createElement('a');pv.href=file.previewUrl||file.downloadUrl;pv.target='_blank';pv.rel='noopener noreferrer';pv.textContent='Preview';actions.appendChild(pv);
+      var down=document.createElement('a');down.href=file.downloadUrl||file.previewUrl;down.textContent='Download';down.download=file.name;down.rel='noopener noreferrer';actions.appendChild(down);
       card.appendChild(info);card.appendChild(actions);d.appendChild(card);
     });
   }
