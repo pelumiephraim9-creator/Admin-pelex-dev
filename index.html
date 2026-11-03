@@ -3525,10 +3525,22 @@ document.getElementById('pbOpen').onclick=function(){go('chat')}})();
   var p=e.target.closest&&e.target.closest('.file-name-preview');
   if(p){preview(p.getAttribute('data-preview-url'),p.getAttribute('data-preview-name'));return}
   var b=e.target.closest&&e.target.closest('.file-download-icon');
-  if(b){var url=b.getAttribute('data-download-url'),name=b.getAttribute('data-download-name');if(url&&typeof saveUrl==='function'){b.disabled=true;saveUrl(url,name).finally(function(){b.disabled=false})}else if(url){var a=document.createElement('a');a.href=url;a.download=name||'download';a.target='_blank';a.rel='noopener';a.click()}return}
+  if(b){var url=b.getAttribute('data-download-url'),name=b.getAttribute('data-download-name');if(url){var a=document.createElement('a');a.href=url;a.setAttribute('data-fc','download');a.setAttribute('data-name',name||'pelex-file');a.style.display='none';document.body.appendChild(a);a.click();setTimeout(function(){a.remove()},1800)}return}
  });
  document.getElementById('pfClose').addEventListener('click',close);
  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&panel&&!panel.hidden)close()});
+})();
+</script>
+<script>
+/* Responsive auto-growing message composer: pasted text remains reviewable before sending. */
+(function(){
+ var box=document.getElementById('in');if(!box||box.tagName!=='TEXTAREA')return;
+ var maxHeight=function(){return Math.min(window.innerHeight*.42,320)};
+ function resize(){box.style.height='44px';var cap=maxHeight(),h=Math.min(box.scrollHeight,cap);box.style.height=Math.max(44,h)+'px';box.style.overflowY=box.scrollHeight>cap?'auto':'hidden'}
+ box.addEventListener('input',resize);
+ box.addEventListener('paste',function(){requestAnimationFrame(resize);setTimeout(resize,40)});
+ window.addEventListener('resize',resize);
+ resize();
 })();
 </script>
 </body>
