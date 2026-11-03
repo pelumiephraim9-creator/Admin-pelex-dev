@@ -3570,5 +3570,90 @@ document.getElementById('pbOpen').onclick=function(){go('chat')}})();
   :root:not([data-theme="light"]) #chat .md svg text{fill:var(--ink)!important}
 }
 </style>
+
+<style>
+/* Pelex corrective pass 2: desktop chart room + complete dark-theme contrast */
+/* Desktop charts must escape the narrow chat-bubble sizing; mobile keeps its own flow. */
+@media (min-width:821px){
+  #chat{width:100%;min-width:0}
+  #chat>.msg:has(.md svg),
+  #chat>.msg:has(.md table){
+    display:block;
+    align-self:stretch;
+    width:100%;
+    max-width:100%;
+    min-width:0;
+    box-sizing:border-box;
+  }
+  #chat>.msg:has(.md svg) .md,
+  #chat>.msg:has(.md table) .md{
+    display:block;
+    width:100%;
+    max-width:100%;
+    min-width:0;
+  }
+  #chat>.msg:has(.md svg) svg{
+    width:100%!important;
+    max-width:100%!important;
+    height:auto!important;
+    min-height:260px;
+  }
+  #chat>.msg:has(.md table) table{
+    width:100%;
+    max-width:100%;
+    table-layout:auto;
+  }
+}
+/* Avoid forced narrow/mobile typography and mid-word wrapping in chart content. */
+#chat .md{overflow-wrap:normal;word-break:normal;hyphens:none}
+#chat .md svg text{font-family:inherit;overflow-wrap:normal;word-break:normal}
+#chat .md th,#chat .md td{overflow-wrap:normal;word-break:normal;hyphens:none}
+@media(max-width:820px){
+  #chat>.msg:has(.md svg),#chat>.msg:has(.md table){width:100%;max-width:100%;align-self:stretch}
+  #chat>.msg:has(.md svg) svg{width:100%;max-width:100%;height:auto;min-height:0}
+}
+/* Dark theme: override the fixed navy navigation text and make interface icons legible. */
+:root[data-theme="dark"]{color-scheme:dark;--nav-ink:#f4f7ff}
+:root[data-theme="dark"] body,
+:root[data-theme="dark"] aside,
+:root[data-theme="dark"] aside .nav,
+:root[data-theme="dark"] aside .nav span,
+:root[data-theme="dark"] .top,
+:root[data-theme="dark"] .top strong,
+:root[data-theme="dark"] .top button,
+:root[data-theme="dark"] .top a,
+:root[data-theme="dark"] #sbName,
+:root[data-theme="dark"] #sbSub,
+:root[data-theme="dark"] .srow,
+:root[data-theme="dark"] .srow span,
+:root[data-theme="dark"] .settings-nav,
+:root[data-theme="dark"] .settings-nav span,
+:root[data-theme="dark"] .nav,
+:root[data-theme="dark"] .nav:visited{
+  color:var(--ink)!important;
+}
+:root[data-theme="dark"] aside svg,
+:root[data-theme="dark"] button svg,
+:root[data-theme="dark"] a svg,
+:root[data-theme="dark"] .top svg,
+:root[data-theme="dark"] .nav svg,
+:root[data-theme="dark"] .settings-nav svg{
+  color:var(--ink)!important;
+}
+:root[data-theme="dark"] aside svg [stroke="currentColor"],
+:root[data-theme="dark"] button svg [stroke="currentColor"],
+:root[data-theme="dark"] a svg [stroke="currentColor"],
+:root[data-theme="dark"] .top svg [stroke="currentColor"],
+:root[data-theme="dark"] .nav svg [stroke="currentColor"],
+:root[data-theme="dark"] .settings-nav svg [stroke="currentColor"]{
+  stroke:var(--ink)!important;
+}
+:root[data-theme="dark"] #chat .md svg text{fill:var(--ink)!important}
+:root[data-theme="dark"] #chat .md,
+:root[data-theme="dark"] #chat .md p,
+:root[data-theme="dark"] #chat .md li,
+:root[data-theme="dark"] #chat .md th,
+:root[data-theme="dark"] #chat .md td{color:var(--ink)}
+</style>
 </body>
 </html>
