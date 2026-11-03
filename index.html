@@ -676,7 +676,6 @@ button.gav{cursor:pointer}.gav.sm{width:38px;height:38px;font-size:21px}
 .md table{border-radius:10px;overflow:hidden}.md table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
 .md img{max-width:100%;border-radius:12px;margin:12px 0;display:block}.md a{color:var(--btn);text-decoration:underline}.md code{background:var(--soft);padding:1px 5px;border-radius:6px;font-size:.92em}
 @media(max-width:600px){.msg{max-width:100%;padding:14px 13px;border-radius:14px}.md{font-size:14.5px}.md th,.md td{min-width:110px;padding:9px 10px}.md .mdh{margin-top:20px}}
-.md img{max-width:100%;border-radius:10px;margin:6px 0;display:block}.md a{color:var(--btn);text-decoration:underline}.md code{background:var(--soft);padding:1px 5px;border-radius:6px;font-size:.92em}
 .stask .res{white-space:normal;max-height:340px;overflow:auto}
 .pchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--soft);border-radius:99px;padding:4px 6px 4px 12px;font-size:14px}.pchip button{border:0;background:none;cursor:pointer;font-size:16px;line-height:1;padding:0 4px;color:inherit}
 .bgate[hidden]{display:none}.bmsgs{display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto;padding:8px 2px}
@@ -704,9 +703,10 @@ details.actlog summary::before{content:"\25B8 "}details.actlog[open] summary::be
 .badge[hidden]{display:none}
 .oauthbtn[hidden],#pkCard[hidden]{display:none}
 
-/* Pelex refinement: calm navy visual system, lighter type and responsive project workspace */
-:root{--bg:#f5f7fb;--panel:#fff;--ink:#17243b;--muted:#68758c;--line:#e3e8f1;--soft:#f0f3f8;--btn:#142b52;--btnink:#fff;--teal:#c5d3e8}
-:root[data-theme="dark"]{--bg:#0c1423;--panel:#121e31;--ink:#e8eef8;--muted:#a1aec2;--line:#26364d;--soft:#17263d;--btn:#203b65;--btnink:#fff;--teal:#536d93}
+/* ===== Pelex refinement (navy visual system, project workspace) ===== */
+:root{--bg:#f5f7fb;--panel:#fff;--ink:#17243b;--muted:#68758c;--line:#e3e8f1;--soft:#f0f3f8;--btn:#142b52;--btnink:#fff;--teal:#c5d3e8;--card:#fff}
+:root[data-theme="dark"]{--bg:#0c1423;--panel:#121e31;--ink:#e8eef8;--muted:#a1aec2;--line:#26364d;--soft:#17263d;--btn:#203b65;--btnink:#fff;--teal:#536d93;--card:#121e31}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0c1423;--panel:#121e31;--ink:#e8eef8;--muted:#a1aec2;--line:#26364d;--soft:#17263d;--btn:#203b65;--btnink:#fff;--teal:#536d93;--card:#121e31}}
 body{font-size:14.5px;line-height:1.55;letter-spacing:0}
 h1,h2,h3,h4{letter-spacing:-.025em;font-weight:650}
 h1{font-size:clamp(25px,3vw,32px);line-height:1.2}
@@ -737,8 +737,72 @@ strong,b{font-weight:600}
 #projectsEmpty{padding:24px;border:1px dashed var(--line);border-radius:14px;background:var(--panel)}
 @media(max-width:700px){#v-projects .wrap{padding-left:16px;padding-right:16px}#projectsGrid{grid-template-columns:1fr;gap:13px}#projectsGrid .project-card{min-height:0;padding:18px}.project-modal{padding:19px;border-radius:16px}.project-modal-actions button{flex:1}}
 @media(prefers-reduced-motion:reduce){#projectsGrid .project-card{transition:none}}
+.file-card{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:14px 0;padding:13px;border:1px solid var(--line);border-radius:12px;background:var(--soft);white-space:normal}.file-card-info{display:flex;flex-direction:column;gap:4px;min-width:0}.file-card-info strong{font-size:13px;overflow-wrap:anywhere}.file-card-info span{font-size:11px;color:var(--muted)}.file-card-actions{display:flex;gap:7px}.file-card-actions a{padding:8px 12px;border:1px solid var(--line);border-radius:8px;text-decoration:none;color:inherit;background:var(--card);font-size:12px;cursor:pointer}@media(max-width:520px){.file-card-actions{width:100%}.file-card-actions a{flex:1;text-align:center}}
 
-.file-card{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:14px 0;padding:13px;border:1px solid var(--line);border-radius:12px;background:var(--soft);white-space:normal}.file-card-info{display:flex;flex-direction:column;gap:4px;min-width:0}.file-card-info strong{font-size:13px;overflow-wrap:anywhere}.file-card-info span{font-size:11px;color:var(--muted)}.file-card-actions{display:flex;gap:7px}.file-card-actions a{padding:8px 12px;border:1px solid var(--line);border-radius:8px;text-decoration:none;color:inherit;background:var(--card);font-size:12px}@media(max-width:520px){.file-card-actions{width:100%}.file-card-actions a{flex:1;text-align:center}}</style>
+/* ===== Sidebar: one collapsible "Agents" group ===== */
+aside{gap:2px}
+.agentsgrp{display:flex;flex-direction:column}
+.agentsbtn .chev{width:16px;height:16px;margin-left:auto;transition:transform .2s}
+.agentsgrp.open .agentsbtn .chev{transform:rotate(180deg)}
+.agentsbtn[data-active="1"]::after{content:"";width:7px;height:7px;border-radius:50%;background:var(--btn);margin-left:6px;flex:none}
+.agentsgrp.open .agentsbtn[data-active="1"]::after{display:none}
+.agentspanel{display:none;flex-direction:column;gap:2px;margin:2px 0 6px 21px;padding-left:8px;border-left:1px solid var(--line)}
+.agentsgrp.open .agentspanel{display:flex}
+.agentspanel .nav{min-height:40px;font-size:14px;padding:0 8px}
+.agentspanel .nav svg{width:17px;height:17px}
+
+/* ===== Chat: roomier, centred column, clear sides ===== */
+#chat{padding-left:max(clamp(14px,4vw,48px),calc((100% - 860px)/2));padding-right:max(clamp(14px,4vw,48px),calc((100% - 860px)/2));padding-top:12px;padding-bottom:12px}
+#chat>.msg{align-self:flex-start;width:fit-content;max-width:min(94%,820px)}
+#chat>.msg.me{align-self:flex-end;background:#142b52;color:#fff;border-color:transparent;border-radius:18px 18px 6px 18px}
+:root[data-theme="dark"] #chat>.msg.me{background:#203b65}
+#chat>.msg:not(.me):not(.sys){border-radius:18px 18px 18px 6px;box-shadow:0 2px 12px rgba(19,39,72,.05)}
+#chat>.msg.sys{align-self:flex-start;margin:8px 0}
+#chat>.msg.me .msgactions button{background:rgba(255,255,255,.1);color:#dbe5f7;border-color:rgba(255,255,255,.22)}
+.msg .msgactions{margin-top:14px;padding-top:2px}
+.msg .actlog{margin-bottom:12px}
+.msg .imgs{margin-bottom:10px}
+.barwrap{padding-left:clamp(14px,4vw,48px);padding-right:clamp(14px,4vw,48px);gap:10px}
+.barwrap .field{min-height:54px;box-shadow:0 2px 12px rgba(19,39,72,.06)}
+.chatbody{padding:28px 18px;gap:10px}
+@media(max-width:820px){
+  #chat{padding-left:12px;padding-right:12px}
+  #chat>.msg{max-width:100%}
+  #chat>.msg.me{max-width:88%}
+  .msg:not(.me):not(.sys){padding:16px 15px}
+  .barwrap{padding-left:12px;padding-right:12px}
+  .msg .msgactions button{padding:6px 11px}
+}
+
+/* ===== Image viewer ===== */
+#chat .msg img,.md img,#imgOut img{cursor:zoom-in}
+#chat .msg .imgs img{cursor:zoom-in}
+#lbx{position:fixed;inset:0;z-index:400;background:rgba(6,12,24,.92);display:flex;flex-direction:column}
+#lbx[hidden]{display:none}
+#lbx .lbtop{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px 10px}
+#lbx .lbtop button{min-height:42px;padding:0 16px;border-radius:99px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.1);color:#fff;font-weight:550;cursor:pointer}
+#lbx .lbtop button.x{width:42px;padding:0;font-size:22px;line-height:1}
+#lbx .lbstage{flex:1;min-height:0;overflow:auto;display:flex;align-items:center;justify-content:center;padding:6px 12px calc(16px + env(safe-area-inset-bottom,0px));-webkit-overflow-scrolling:touch}
+#lbx img{max-width:100%;max-height:100%;object-fit:contain;border-radius:10px;margin:auto;cursor:zoom-in;display:block}
+#lbx.zoom .lbstage{align-items:flex-start;justify-content:flex-start}
+#lbx.zoom img{max-width:none;max-height:none;width:min(220vw,2600px);cursor:zoom-out}
+#lbx .lbnote{color:#cdd8ee;font-size:13px;text-align:center;padding:0 12px 8px;min-height:18px}
+
+/* fix: the sidebar ".me" account style was leaking into your own chat bubbles */
+#chat>.msg.me{display:block;gap:0;align-items:normal;margin-top:14px;margin-bottom:14px;border:0;padding:16px 18px}
+@media(max-width:820px){#chat>.msg.me{padding:14px 15px}}
+.msg.me .txtp{margin:0}
+
+/* composer: image button icon + roomier phone layout */
+#imgBtn svg{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+@media(max-width:820px){
+  .barwrap .bar{flex-wrap:wrap;gap:8px}
+  .barwrap .field{flex:1 1 100%;min-height:52px}
+  .barwrap .talk{flex:1 1 0;min-height:42px;text-align:center;padding:0 14px}
+  .barwrap .plugshortcut{min-height:34px;font-size:12.5px}
+  .barwrap .disclaimer{font-size:11.5px}
+}
+</style>
 </head>
 <body>
 <div id="splash" aria-hidden="true"><div class="sg"></div><svg viewBox="0 0 40 40"><polygon class="hx" pathLength="1" points="20,3 35,11.5 35,28.5 20,37 5,28.5 5,11.5"/><circle class="nd" style="animation-delay:0.25s" cx="20" cy="3" r="2.2" fill="#5ec3e6"/><circle class="nd" style="animation-delay:0.37s" cx="35" cy="11.5" r="2.2" fill="var(--btn,#0a89f4)"/><circle class="nd" style="animation-delay:0.49s" cx="35" cy="28.5" r="2.2" fill="var(--btn,#0a89f4)"/><circle class="nd" style="animation-delay:0.61s" cx="20" cy="37" r="2.2" fill="#5ec3e6"/><circle class="nd" style="animation-delay:0.73s" cx="5" cy="28.5" r="2.2" fill="var(--btn,#0a89f4)"/><circle class="nd" style="animation-delay:0.85s" cx="5" cy="11.5" r="2.2" fill="var(--btn,#0a89f4)"/><rect class="bd" x="11" y="11" width="18" height="18" rx="5" fill="var(--btn,#0a89f4)"/><text class="pl" x="20" y="25" text-anchor="middle" font-size="13" font-weight="800" font-family="Segoe UI,system-ui,Arial,sans-serif" fill="var(--btnink,#fff)">P</text></svg><div class="wm">PELEX</div><div class="tg">Your AI assistant</div><div class="sbar"><i></i></div></div>
@@ -755,11 +819,12 @@ setTimeout(out,rm?500:4600);setTimeout(out,6500);sp.addEventListener('click',out
 <button class="nav newchat" data-go="chat"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New chat</button>
 <button class="nav" data-go="projects"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Projects</button>
 <button class="nav" data-go="scheduled"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Scheduled<span class="nbadge" id="schedBadge" hidden aria-label="New scheduled results"></span></button>
-<button class="nav" data-go="pitch"><svg viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-3-7z"/></svg>Pitch Agent</button>
 <button class="nav" data-go="groups"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.4 3-5 6-5s5.4 1.6 6 5"/><circle cx="17" cy="9" r="2.4"/><path d="M16.5 14.2c2.4.2 4 1.6 4.5 4.3"/></svg>Groups<span class="nbadge" id="gBadge" hidden aria-label="Groups with new messages"></span></button>
+<div class="agentsgrp" id="agentsGrp"><button type="button" class="nav agentsbtn" id="agentsBtn" aria-expanded="false" aria-controls="agentsPanel"><svg viewBox="0 0 24 24"><rect x="5" y="8" width="14" height="10" rx="3"/><path d="M12 8V5M9 13h.01M15 13h.01M3 13v2M21 13v2"/></svg>Agents<svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button><div class="agentspanel" id="agentsPanel"><button class="nav" data-go="pitch"><svg viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-3-7z"/></svg>Pitch Agent</button>
 <button class="nav" data-go="personal"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.8-4 3.6-6 7-6s6.2 2 7 6"/></svg>Personal Bot</button>
 <button class="nav" data-go="gmail"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>Gmail Bot</button>
 <button class="nav" data-go="business"><svg viewBox="0 0 24 24"><path d="M4 9l1-5h14l1 5M4 9h16v11H4zM9 20v-6h6v6"/></svg>Business Bot</button>
+</div></div>
 <button class="nav" data-go="support" id="navSupport" hidden><svg viewBox="0 0 24 24"><path d="M4 13v-1a8 8 0 0 1 16 0v1M4 13h3v5H4zM17 13h3v5h-3zM17 18c0 2-2 3-5 3"/></svg>Support<span class="nbadge" id="supBadge" hidden></span></button>
 <button class="nav" data-go="ads"><svg viewBox="0 0 24 24"><path d="M3 11v3a1 1 0 0 0 1 1h2l8 4V6L6 10H4a1 1 0 0 0-1 1zM18 9a4 4 0 0 1 0 6"/></svg>Run ads <span class="badge soon">Soon</span></button>
 <div id="recPinned"></div>
@@ -822,7 +887,7 @@ setTimeout(out,rm?500:4600);setTimeout(out,6500);sp.addEventListener('click',out
 <div style="margin-top:16px"><button class="btn alt" id="libClear">Clear library</button></div>
 </div></section>
 
-<section class="view" id="v-pitch" hidden><div class="wrap"><div class="abanner" data-agent="pitch" hidden></div>
+<section class="view" id="v-pitch" hidden><div class="wrap"><div class="abanner" data-agent="pitch" hidden></div><div style="margin:0 0 14px"><button class="btn alt" type="button" data-sched-agent="pitch">Schedule a task for this agent</button></div>
 <h1>Pitch Agent</h1><div class="muted">Finds jobs and clients, writes in your tone, and asks you before anything is sent.</div>
 <div id="pMsg" class="muted" role="status" style="min-height:20px;margin-top:8px"></div>
 <div class="pfun" id="pFun"></div>
@@ -868,12 +933,12 @@ setTimeout(out,rm?500:4600);setTimeout(out,6500);sp.addEventListener('click',out
 </section>
 <div class="lp-toast" id="gToast" role="status" aria-live="polite" hidden></div>
 <section class="view" id="v-personal" hidden><div class="wrap">
-<div class="abanner" data-agent="personal" hidden></div><h1>Personal Bot</h1><div class="muted">Your own assistant. It remembers what matters to you, keeps your notes and tasks, and works with your email once Gmail is connected.</div>
+<div class="abanner" data-agent="personal" hidden></div><div style="margin:0 0 14px"><button class="btn alt" type="button" data-sched-agent="personal">Schedule a task for this agent</button></div><h1>Personal Bot</h1><div class="muted">Your own assistant. It remembers what matters to you, keeps your notes and tasks, and works with your email once Gmail is connected.</div>
 <div class="card" style="margin-top:18px"><h2>Status</h2><div id="pbStatus" class="muted">Checking...</div>
 <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px"><button class="btn" type="button" id="pbOpen" hidden>Open chat</button><button class="btn" type="button" data-plan="personal" id="pbStart" hidden>Start 2-day trial</button><button class="btn" type="button" data-go="plugins">Connect email</button></div></div>
 </div></section>
 <section class="view" id="v-gmail" hidden><div class="wrap">
-<div class="abanner" data-agent="gmail" hidden></div>
+<div class="abanner" data-agent="gmail" hidden></div><div style="margin:0 0 14px"><button class="btn alt" type="button" data-sched-agent="gmail">Schedule a task for this agent</button></div>
 <h1>Gmail Bot</h1><div class="muted">Write better emails with AI and voice. You always review a message before anything is sent.</div>
 <div class="card" style="margin-top:18px"><h2>Write with AI</h2>
 <div class="muted">Say or type what the email is about. Pelex drafts it with a subject line, then you can improve it and open it in Gmail.</div>
@@ -889,7 +954,7 @@ setTimeout(out,rm?500:4600);setTimeout(out,6500);sp.addEventListener('click',out
 <div class="card" style="margin-top:14px"><h2>How your privacy is handled</h2>
 <div class="muted">Pelex drafts for you to review and never sends on its own. Attachments and images are not read. Voice input uses your browser's speech service, which may send audio to your device maker. Sign-in tokens are kept on the server, never in your browser.</div></div>
 </div></section>
-<section class="view" id="v-business" hidden><div class="wrap"><div class="abanner" data-agent="business" hidden></div>
+<section class="view" id="v-business" hidden><div class="wrap"><div class="abanner" data-agent="business" hidden></div><div style="margin:0 0 14px"><button class="btn alt" type="button" data-sched-agent="business">Schedule a task for this agent</button></div>
 <h1>Business Bot</h1><div class="muted">Tell Pelex about your business. Your bot answers customers in your tone and stays inside the limits you set.</div>
 <div class="card bgate" id="bGate" style="margin-top:18px" hidden><h2>Start the Business Bot plan first</h2><span class="muted">Switch the plan on, then set up your bot here.</span><button class="btn" type="button" data-plan="business">Start 2-day trial</button></div>
 <div id="bForm" hidden>
@@ -931,8 +996,8 @@ setTimeout(out,rm?500:4600);setTimeout(out,6500);sp.addEventListener('click',out
 <div><label for="sFreq" class="muted">How often</label><select class="inp" id="sFreq"><option value="daily">Every day</option><option value="weekdays">Weekdays</option><option value="weekly">Every week</option><option value="every2days">Every 2 days</option><option value="every3days">Every 3 days</option><option value="biweekly">Every 2 weeks</option><option value="monthly">Every month</option><option value="once">Just once</option></select></div>
 <div id="sDayWrap" hidden><label for="sDay" class="muted">On</label><select class="inp" id="sDay"><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option><option value="0">Sunday</option></select></div>
 <div><label for="sTime" class="muted">At</label><input class="inp" id="sTime" type="time" value="08:00"><div class="muted" id="sTzNote" style="font-size:12px;margin-top:4px"></div></div>
-<div><label for="sChan" class="muted">Deliver to</label><select class="inp" id="sChan"><option value="website">Pelex website inbox</option><option value="telegram" disabled>Telegram — connection not available yet</option><option value="whatsapp" disabled>WhatsApp — connection not available yet</option></select><div class="muted" style="font-size:12px;margin-top:4px">Results will appear in Your schedule inside Pelex.</div></div>
-<div><label for="sBot" class="muted">Run with</label><select class="inp" id="sBot"><option value="general">General Agent — available</option><option value="public" disabled>Public Agent — runtime not connected</option><option value="personal" disabled>Personal Agent — coming soon</option><option value="business" disabled>Business Agent — coming soon</option><option value="pitch" disabled>Pitch Agent — coming soon</option><option value="mailbot" disabled>Mailbot — coming soon</option></select><div class="muted" style="font-size:12px;margin-top:4px">Only agents connected to the scheduler can be selected. Your task will not be silently run by another agent.</div></div>
+<div><label for="sChan" class="muted">Send to</label><select class="inp" id="sChan"><option value="website">This app</option><option value="telegram" disabled data-chan="telegram">Telegram (turns on when connected)</option><option value="whatsapp" disabled data-chan="whatsapp">WhatsApp (turns on when connected)</option></select></div>
+<div><label for="sBot" class="muted">Run with</label><select class="inp" id="sBot"><option value="general">General Agent</option><option value="personal">Personal Agent</option><option value="business">Business Agent</option><option value="pitch">Pitch Agent</option><option value="gmail">Gmail Bot (Mailbot)</option></select></div>
 </div>
 <div style="margin-bottom:12px"><label for="sSrc" class="muted">Website to pull from (optional)</label><input class="inp" id="sSrc" type="url" inputmode="url" placeholder="Paste a website link"></div>
 <div id="sMsg" class="muted" style="min-height:20px;font-size:13px;margin-bottom:8px" role="status"></div>
@@ -1207,52 +1272,22 @@ function add(t,cls,img,retryFn){try{if(typeof t==='string'&&t){var hh=(window.__
   }else{if(!cls&&window.mdRender)textNode.appendChild(window.mdRender(t));else textNode.textContent=t}
   if(!cls&&window.__lastSteps&&window.__lastSteps.length&&!window.__stepsDone){window.__stepsDone=true;var dt=document.createElement('details');dt.className='actlog';var sm=document.createElement('summary'),sn=window.__lastSteps.length;sm.textContent='Activity \u00b7 '+sn+(sn===1?' step':' steps');dt.appendChild(sm);window.__lastSteps.forEach(function(x){var r=document.createElement('div');r.textContent='\u2713 '+x;dt.appendChild(r)});d.appendChild(dt)}
   d.appendChild(textNode);
-  if(!cls){
-    textNode.querySelectorAll('img').forEach(function(im){
-      var src=im.currentSrc||im.src||'';
-      if(!/\\/media\\/download\\?/.test(src)||!/path=images(?:%2F|\\/)/i.test(src))return;
-      im.alt='Image generated by Pelex';im.loading='lazy';im.style.cursor='zoom-in';im.setAttribute('role','button');im.setAttribute('tabindex','0');im.setAttribute('aria-label','Open image actions');
-      function openImageActions(){
-        var prior=document.getElementById('pelexImageActions');if(prior)prior.remove();
-        var overlay=document.createElement('div');overlay.id='pelexImageActions';overlay.className='pelex-image-overlay';
-        var panel=document.createElement('div');panel.className='pelex-image-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-label','Image actions');
-        var close=document.createElement('button');close.type='button';close.className='pelex-image-close';close.textContent='Close';close.onclick=function(){overlay.remove()};
-        var preview=document.createElement('img');preview.src=src;preview.alt='Image generated by Pelex';
-        var actions=document.createElement('div');actions.className='pelex-image-actions';
-        var download=document.createElement('a');download.className='pelex-image-action primary';download.textContent='Download';download.href=src.replace(/&view=1$/,'');download.setAttribute('download','pelex-image.png');download.rel='noopener';
-        var share=document.createElement('button');share.type='button';share.className='pelex-image-action';share.textContent='Share';
-        share.onclick=async function(){
-          try{
-            if(navigator.share){await navigator.share({title:'Image generated by Pelex',url:src})}
-            else if(navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(src);share.textContent='Link copied';}
-            else{share.textContent='Sharing unavailable';}
-          }catch(e){}
-        };
-        actions.appendChild(download);actions.appendChild(share);panel.appendChild(close);panel.appendChild(preview);panel.appendChild(actions);overlay.appendChild(panel);
-        overlay.addEventListener('click',function(e){if(e.target===overlay)overlay.remove()});
-        document.addEventListener('keydown',function esc(e){if(e.key==='Escape'){overlay.remove();document.removeEventListener('keydown',esc)}});
-        document.body.appendChild(overlay);close.focus();
-      }
-      im.addEventListener('click',openImageActions);im.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();openImageActions()}});
-    });
-  }
   if(!cls&&typeof t==='string'){
-    var dlRe=/\\[Download ([^\\]]+)\\]\\((https?:\\/\\/[^\\s)]+)\\)/gi, pvRe=/\\[Preview ([^\\]]+)\\]\\((https?:\\/\\/[^\\s)]+)\\)/gi, match, files=[];
-    while((match=dlRe.exec(t))!==null)files.push({name:match[1],downloadUrl:match[2],previewUrl:null});
-    while((match=pvRe.exec(t))!==null){var found=files.filter(function(f){return f.name===match[1]})[0];if(found)found.previewUrl=match[2];else files.push({name:match[1],previewUrl:match[2],downloadUrl:match[2]})}
+    var dlRe=/\[Download ([^\]]+)\]\((https?:\/\/[^\s)]+)\)/gi,pvRe=/\[Preview ([^\]]+)\]\((https?:\/\/[^\s)]+)\)/gi,mF,files=[];
+    while((mF=dlRe.exec(t))!==null)files.push({name:mF[1],downloadUrl:mF[2],previewUrl:null});
+    while((mF=pvRe.exec(t))!==null){var fnd=files.filter(function(f){return f.name===mF[1]})[0];if(fnd)fnd.previewUrl=mF[2];else files.push({name:mF[1],previewUrl:mF[2],downloadUrl:mF[2]})}
     files.forEach(function(file){
       var card=document.createElement('div');card.className='file-card';
       var info=document.createElement('div');info.className='file-card-info';
       var title=document.createElement('strong');title.textContent=file.name;
-      var label=document.createElement('span');label.textContent='Generated document';
-      info.appendChild(title);info.appendChild(label);
+      var lab=document.createElement('span');lab.textContent='Generated file';
+      info.appendChild(title);info.appendChild(lab);
       var actions=document.createElement('div');actions.className='file-card-actions';
-      var pv=document.createElement('a');pv.href=file.previewUrl||file.downloadUrl;pv.target='_blank';pv.rel='noopener noreferrer';pv.textContent='Preview';actions.appendChild(pv);
-      var down=document.createElement('a');down.href=file.downloadUrl||file.previewUrl;down.textContent='Download';down.download=file.name;down.rel='noopener noreferrer';actions.appendChild(down);
+      var pv=document.createElement('a');pv.href=file.previewUrl||file.downloadUrl;pv.target='_blank';pv.rel='noopener noreferrer';pv.textContent='Preview';pv.setAttribute('data-fc','preview');pv.setAttribute('data-name',file.name);actions.appendChild(pv);
+      var dn=document.createElement('a');dn.href=file.downloadUrl||file.previewUrl;dn.rel='noopener noreferrer';dn.textContent='Download';dn.setAttribute('data-fc','download');dn.setAttribute('data-name',file.name);actions.appendChild(dn);
       card.appendChild(info);card.appendChild(actions);d.appendChild(card);
     });
   }
-
   if(!cls){ // bot reply: add copy / thumbs / retry row
     var row=document.createElement('div');row.className='msgactions';
     var cp=document.createElement('button');cp.setAttribute('aria-label','Copy');cp.textContent='Copy';
@@ -1270,7 +1305,7 @@ function add(t,cls,img,retryFn){try{if(typeof t==='string'&&t){var hh=(window.__
     down.onclick=function(){down.setAttribute('aria-pressed','true');up.setAttribute('aria-pressed','false');fb.textContent='Thanks, noted.'};
     if(t.length>180){
       var esc=function(x){return String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')};
-      var docHtml=function(){return '<html><head><meta charset="utf-8"><title>Pelex</title><style>body{font-family:Arial,sans-serif;line-height:1.55;max-width:720px;margin:32px auto;padding:0 16px}pre{background:#f3f4f6;padding:10px;white-space:pre-wrap}.pelex-image-overlay{position:fixed;inset:0;z-index:9999;background:rgba(8,18,38,.78);display:flex;align-items:center;justify-content:center;padding:18px}.pelex-image-panel{position:relative;width:min(92vw,760px);max-height:92vh;overflow:auto;background:var(--card,#fff);color:var(--text,#172033);border-radius:18px;padding:16px;box-shadow:0 18px 70px rgba(0,0,0,.3)}.pelex-image-panel>img{display:block;width:100%;max-height:72vh;object-fit:contain;border-radius:10px;background:#eef1f5}.pelex-image-close{display:block;margin:0 0 10px auto;border:1px solid var(--line,#d9e0ea);border-radius:8px;padding:7px 12px;background:var(--soft,#f5f7fa);color:inherit;cursor:pointer}.pelex-image-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:13px}.pelex-image-action{display:inline-flex;align-items:center;justify-content:center;min-width:110px;padding:10px 16px;border:1px solid var(--line,#d9e0ea);border-radius:9px;background:var(--soft,#f5f7fa);color:inherit;text-decoration:none;font:inherit;cursor:pointer}.pelex-image-action.primary{background:var(--btn,#087ef5);border-color:var(--btn,#087ef5);color:#fff}.msg img[aria-label="Open image actions"]{max-width:100%;height:auto;border-radius:12px}@media(max-width:520px){.pelex-image-panel{padding:10px}.pelex-image-actions{display:grid;grid-template-columns:1fr 1fr}.pelex-image-action{min-width:0}}</style></head><body><div style="white-space:pre-wrap">'+esc(t)+'</div><p style="color:#888;font-size:12px;margin-top:30px">Made with Pelex</p></body></html>'};
+      var docHtml=function(){return '<html><head><meta charset="utf-8"><title>Pelex</title><style>body{font-family:Arial,sans-serif;line-height:1.55;max-width:720px;margin:32px auto;padding:0 16px}pre{background:#f3f4f6;padding:10px;white-space:pre-wrap}</style></head><body><div style="white-space:pre-wrap">'+esc(t)+'</div><p style="color:#888;font-size:12px;margin-top:30px">Made with Pelex</p></body></html>'};
       var pdf=document.createElement('button');pdf.type='button';pdf.className='dl';pdf.textContent='PDF';pdf.setAttribute('aria-label','Save as PDF');
       pdf.onclick=function(){var w=window.open('','_blank');if(!w){add('Your browser blocked the PDF window. Allow pop-ups for this site and try again.','sys');return}w.document.write(docHtml());w.document.close();w.focus();setTimeout(function(){try{w.print()}catch(e){}},400)};
       var wd=document.createElement('button');wd.type='button';wd.className='dl';wd.textContent='Word';wd.setAttribute('aria-label','Save as Word document');
@@ -2164,7 +2199,7 @@ $('newProjectBtn').onclick=function(){
   $('projectCreateForm').onsubmit=async function(e){
     e.preventDefault();var n=$('projectName').value.trim(),d=$('projectDescription').value.trim();
     if(!n){$('projectName').focus();return}
-    var save=$('projectSave');save.disabled=true;save.textContent='Creating…';
+    var save=$('projectSave');save.disabled=true;save.textContent='Creating\u2026';
     var row={name:n.slice(0,60)};if(d)row.description=d.slice(0,400);
     var r=await sb.from('projects').insert(row);
     if(r.error&&row.description){delete row.description;r=await sb.from('projects').insert(row)}
@@ -2174,6 +2209,18 @@ $('newProjectBtn').onclick=function(){
 };
 
 // ---- Scheduled board ----
+var AGL={general:'General Agent',personal:'Personal Agent',business:'Business Agent',pitch:'Pitch Agent',gmail:'Gmail Bot'};
+function schedStatusLine(t){
+  var st=t.last_status,when=t.last_run_at?new Date(t.last_run_at).toLocaleString([],{dateStyle:'medium',timeStyle:'short'}):'';
+  if(t.run_state==='running')return 'Running now...';
+  if(t.retry_at&&st==='failed')return 'Last run failed ('+(t.last_error||'error')+'). Trying again '+new Date(t.retry_at).toLocaleString([],{dateStyle:'medium',timeStyle:'short'})+'.';
+  if(st==='delivered')return 'Delivered '+(t.delivered_at?new Date(t.delivered_at).toLocaleString([],{dateStyle:'medium',timeStyle:'short'}):when);
+  if(st==='delivery_failed')return 'The result is saved here, but sending it failed: '+(t.last_error||'delivery problem');
+  if(st==='pending_approval')return 'Waiting for your approval. Nothing has been sent.';
+  if(st==='skipped')return 'Skipped. It runs again at the next scheduled time.';
+  if(st==='failed')return 'The last run failed ('+(t.last_error||'error')+'). It will try again at the next scheduled time.';
+  if(t.delivered_at)return 'Last sent '+new Date(t.delivered_at).toLocaleString([],{dateStyle:'medium',timeStyle:'short'});
+  return ''}
 var FREQ={daily:'Every day',weekdays:'Weekdays',weekly:'Every week',every2days:'Every 2 days',every3days:'Every 3 days',biweekly:'Every 2 weeks',monthly:'Every month',once:'Once'};
 function sMsg(t,bad){var m=$('sMsg');m.textContent=t||'';m.style.color=bad?'#b3261e':''}
 function nextRunFrom(freq,time,day){
@@ -2229,9 +2276,9 @@ async function loadTasks(){
     }
     var db=document.createElement('button');db.className='btn alt';db.textContent='Delete';
     db.onclick=async function(){if(!confirm('Delete this scheduled task?'))return;var removed=await sb.from('scheduled_tasks').delete().eq('id',t.id);if(removed.error){sMsg('Could not delete this task: '+removed.error.message,true);return}loadTasks()};
-    a.appendChild(db);c.appendChild(a);box.appendChild(c)})
+    a.appendChild(db);c.appendChild(a);box.appendChild(c)
+  })
 }
-document.querySelectorAll('[data-schedule-agent]').forEach(function(b){b.addEventListener('click',function(){var id=b.getAttribute('data-schedule-agent');$('sBot').value=id;go('scheduled');var ready=id==='general';sMsg(ready?'General Agent is ready for scheduled tasks.': 'This agent is not connected to scheduled execution yet. You can review the task setup, but it cannot be saved until its runtime is connected.');$('sBot').dispatchEvent(new Event('change'));});});
 var MOVIE_RE=/\b(netflix|prime video|amazon prime|disney\+?|showmax|hulu|hbo|apple tv|movies?|films?|nollywood|series|tv shows?|trailers?|box office|streaming)\b/i;
 function movieGuard(){var f=$('sFreq'),t=$('sInstr').value+' '+($('sSrc')?$('sSrc').value:'');
   if(MOVIE_RE.test(t)&&(f.value==='daily'||f.value==='weekdays')){f.value='every2days';f.dispatchEvent(new Event('change'));sMsg('Movie and TV updates are checked every 2 days, so you get real news instead of repeats.');return true}return false}
@@ -2245,7 +2292,7 @@ $('sAdd').onclick=async function(){
   var btn=this;btn.disabled=true;sMsg('Saving...');
   var selectedBot=$('sBot').value;if(selectedBot!=='general'){btn.disabled=false;sMsg('That agent is not connected to scheduled execution yet. Choose General Agent for now.',true);return}var r=await sb.from('scheduled_tasks').insert({bot:selectedBot,instruction:ins,frequency:f,channel:$('sChan').value,next_run:nextRunFrom(f,$('sTime').value,$('sDay').value),user_name:userDisplay(curUser),timezone:tz});
   btn.disabled=false;
-  if(r.error){sMsg('Could not save that: '+(r.error.message||'Please try again.'),true);return}
+  if(r.error){sMsg('Could not save that. Please try again.',true);return}
   $('sInstr').value='';$('sSrc').value='';document.querySelectorAll('#sChips .qchip').forEach(function(x){x.classList.remove('on')});sMsg(f==='every2days'&&MOVIE_RE.test(ins)?'Added. Movie and TV updates are checked every 2 days.':'Added to your schedule.');loadTasks();
 };
 
@@ -3328,6 +3375,86 @@ document.getElementById('pbOpen').onclick=function(){go('chat')}})();
     catch(e){$('imgMsg').textContent=(e&&!e.backend&&e.message)?e.message:'Could not do that right now. Please try again.'}
     $('imgCreate').disabled=$('imgFind').disabled=false}
   if($('imgCreate')){$('imgCreate').onclick=function(){run('/image')};$('imgFind').onclick=function(){run('/examples')}}
+})();
+</script>
+<script>
+(function(){
+  function scheduleFor(a){if(typeof go==='function')go('scheduled');setTimeout(function(){var sel=document.getElementById('sBot');if(sel)sel.value=a;var i=document.getElementById('sInstr');if(i)i.focus()},120)}
+  document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('[data-sched-agent]');if(b)scheduleFor(b.getAttribute('data-sched-agent'))});
+  window.pelexScheduleFor=scheduleFor;
+  var BASE={general:'General Agent',personal:'Personal Agent',business:'Business Agent',pitch:'Pitch Agent',gmail:'Gmail Bot (Mailbot)'};
+  function labels(){var st=window.__status,sel=document.getElementById('sBot');if(!st||!sel)return;[].forEach.call(sel.options,function(o){var a=st.agents&&st.agents[o.value];o.textContent=BASE[o.value]+((a&&!a.ready&&o.value!=='general')?' (connecting, starts by itself)':'')})}
+  setInterval(labels,1500);
+})();
+</script>
+<script>
+/* ===== Agents group in the sidebar + image viewer + real downloads ===== */
+(function(){
+  var $=function(i){return document.getElementById(i)};
+  /* --- Agents drop-down --- */
+  var grp=$('agentsGrp'),btn=$('agentsBtn'),AG=['pitch','personal','gmail','business'];
+  function lsg(k){try{return localStorage.getItem(k)}catch(e){return null}}
+  function lss(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+  function setOpen(o,keep){if(!grp)return;grp.classList.toggle('open',!!o);btn.setAttribute('aria-expanded',o?'true':'false');if(!keep)lss('pelex_agents_open',o?'1':'0');mark()}
+  function mark(){if(!grp)return;var on=!!grp.querySelector('.agentspanel .nav[aria-current="true"]');btn.setAttribute('data-active',on?'1':'0')}
+  if(grp){
+    setOpen(lsg('pelex_agents_open')==='1',true);
+    btn.addEventListener('click',function(){setOpen(!grp.classList.contains('open'))});
+    var _go=go;
+    go=function(v,t){_go(v,t);if(AG.indexOf(v)>-1&&!grp.classList.contains('open'))setOpen(true,true);mark()};
+  }
+  /* --- download any file or image, without leaving the page --- */
+  var EXT={'image/png':'png','image/jpeg':'jpg','image/webp':'webp','image/gif':'gif','image/svg+xml':'svg','application/pdf':'pdf'};
+  function nameOf(u,def){try{var p=decodeURIComponent(new URL(u,location.href).pathname.split('/').pop()||'');return p||def}catch(e){return def}}
+  async function saveUrl(u,name,note){
+    /* Pelex media links answer with an attachment, so a plain anchor saves the file and the page stays put */
+    if(/\/media\/download\?/.test(u)){
+      try{var du=u.replace(/([?&])view=1(&|$)/,function(m,a,b){return b==='&'?a:''}).replace(/[?&]$/,'');
+        var a0=document.createElement('a');a0.href=du;a0.setAttribute('download',name||'pelex-file');a0.rel='noopener';a0.style.display='none';document.body.appendChild(a0);a0.click();setTimeout(function(){a0.remove()},1500);
+        if(note)note.textContent='Saving to your device...';return true}catch(e0){}
+    }
+    try{
+      var r=await fetch(u,{mode:'cors'});if(!r.ok)throw new Error('http '+r.status);
+      var b=await r.blob(),nm=name||nameOf(u,'pelex-file');
+      if(!/\.[a-z0-9]{2,5}$/i.test(nm)&&EXT[b.type])nm+='.'+EXT[b.type];
+      var o=URL.createObjectURL(b),a=document.createElement('a');a.href=o;a.download=nm;document.body.appendChild(a);a.click();
+      setTimeout(function(){URL.revokeObjectURL(o);a.remove()},2000);
+      if(note)note.textContent='Saved to your device.';return true
+    }catch(e){
+      if(note)note.textContent='Your browser blocked a direct save. Press and hold the picture, then choose Save image.';
+      return false}}
+  /* --- viewer --- */
+  var lb=document.createElement('div');lb.id='lbx';lb.hidden=true;lb.setAttribute('role','dialog');lb.setAttribute('aria-modal','true');lb.setAttribute('aria-label','Picture viewer');
+  lb.innerHTML='<div class="lbtop"><button type="button" id="lbDl">Download</button><button type="button" class="x" id="lbX" aria-label="Close">\u00d7</button></div><div class="lbstage"><img alt="Picture"></div><div class="lbnote" id="lbNote">Tap the picture to zoom.</div>';
+  document.body.appendChild(lb);
+  var lbImg=lb.querySelector('img'),lbNote=$('lbNote'),cur='',curName='';
+  function openLb(src,name){cur=src;curName=name||nameOf(src,'pelex-image');lbImg.src=src;lb.classList.remove('zoom');lbNote.textContent='Tap the picture to zoom.';lb.hidden=false;document.body.style.overflow='hidden'}
+  function closeLb(){lb.hidden=true;lbImg.removeAttribute('src');document.body.style.overflow=''}
+  $('lbX').onclick=closeLb;
+  lb.addEventListener('click',function(e){if(e.target===lb||e.target.classList.contains('lbstage'))closeLb()});
+  lbImg.addEventListener('click',function(e){e.stopPropagation();lb.classList.toggle('zoom');lbNote.textContent=lb.classList.contains('zoom')?'Scroll to look around. Tap again to fit.':'Tap the picture to zoom.'});
+  $('lbDl').onclick=function(){saveUrl(cur,curName,lbNote)};
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!lb.hidden)closeLb()});
+  /* --- clicks in chat, scheduled results, Images screen --- */
+  var IMGX=/\.(png|jpe?g|webp|gif|svg)(\?|#|$)/i;
+  document.addEventListener('click',function(e){
+    var t=e.target;if(!t||!t.closest)return;
+    if(t.closest('#lbx'))return;
+    var fc=t.closest('a[data-fc]');
+    if(fc){e.preventDefault();var u=fc.href,nm=fc.getAttribute('data-name')||nameOf(u,'pelex-file');
+      if(fc.getAttribute('data-fc')==='download'){var o=fc.textContent;fc.textContent='Saving...';saveUrl(u,nm).then(function(ok){fc.textContent=ok?'Saved':o;setTimeout(function(){fc.textContent=o},1800);if(!ok)try{window.open(u,'_blank','noopener')}catch(x){}})}
+      else if(IMGX.test(nm)||IMGX.test(u))openLb(u,nm);else window.open(u,'_blank','noopener');return}
+    var im=t.closest('#chat .msg img,.md img,#imgOut img,.stask .res img');
+    if(im&&im.src&&!im.closest('#attachTh')){e.preventDefault();e.stopPropagation();openLb(im.currentSrc||im.src,im.getAttribute('data-name')||'');return}
+    var a=t.closest('.md a,#chat .msg a');
+    if(a&&a.href){
+      var wrapImg=a.querySelector('img');
+      if(wrapImg){e.preventDefault();openLb(a.href,'');return}
+      var txt=(a.textContent||'').trim(),dl=/^download\b/i.test(txt)||/[?&]download=/.test(a.href)||/\/storage\/v1\/object\//.test(a.href);
+      if(dl){e.preventDefault();var old=a.textContent;a.textContent='Saving...';saveUrl(a.href,'').then(function(ok){a.textContent=ok?'Saved':old;setTimeout(function(){a.textContent=old},1800);if(!ok)try{window.open(a.href,'_blank','noopener')}catch(x){}});return}
+      if(IMGX.test(a.href)){e.preventDefault();openLb(a.href,'')}
+    }
+  },true);
 })();
 </script>
 </body>
