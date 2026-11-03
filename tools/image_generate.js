@@ -7,6 +7,18 @@ const CF = () => E.CF_API_BASE || 'https://api.cloudflare.com/client/v4';
 const HF = () => E.HF_API_BASE || 'https://router.huggingface.co/hf-inference/models';
 const clip = (v,n) => String(v || '').slice(0,n);
 
+// Make a short, human-readable caption from the user's image request.
+function imageCaption(raw) {
+  let title = String(raw || '').trim()
+    .replace(/^(?:please\\s+)?(?:can you\\s+)?(?:generate|create|make|draw|design|produce)\\s+(?:an?\\s+)?(?:image|picture|photo|photograph|visual|render)\\s*(?:(?:of|for|showing)\\s+|[:—-]\\s*)?/i, '')
+    .split(/[\\n,;.!?]/)[0]
+    .replace(/\\s+/g, ' ')
+    .replace(/^(?:of|for)\\s+/i, '')
+    .trim();
+  if (!title) title = 'Pelex Image';
+  return title.slice(0, 64).replace(/\\b[a-z]/g, c => c.toUpperCase());
+}
+
 async function viaCloudflare(prompt, ctx) {
   const token = E.CF_API_TOKEN || '';
   const account = E.CF_ACCOUNT_ID || '';
@@ -83,6 +95,8 @@ module.exports={
   if(!img) throw new Error('Image generation is unavailable. '+errors.join(' | '));
   const ext=img.mime==='image/png'?'png':img.mime==='image/webp'?'webp':'jpg';
   const file=await ctx.saveFile({name:'pelex-image.'+ext,mime:img.mime,bytes:img.bytes,folder:'images'});
-  return {text:'Your image has been generated successfully by Pelex and will be available for 2 days.',markdown:`![Your Pelex image](${file.url})`};
+  const caption=imageCaption(prompt);
+  // The URL is used only as the inline image source, never as a visible file link.
+  return {text:caption+' — image generated.',markdown:`![${caption}](${file.url})`};
  }
 };
