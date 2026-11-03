@@ -1358,7 +1358,7 @@ function add(t,cls,img,retryFn){try{if(typeof t==='string'&&t){var hh=(window.__
  function fit(){box.style.height='44px';var h=Math.min(box.scrollHeight,Math.min(window.innerHeight*.42,320));box.style.height=Math.max(44,h)+'px';box.style.overflowY=box.scrollHeight>h?'auto':'hidden';}
  box.addEventListener('input',fit);
  box.addEventListener('paste',function(){setTimeout(fit,0)});
- box.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();var send=document.getElementById('send');if(send)send.click()}});
+ 
  window.addEventListener('resize',fit);fit();
 })();
 <\/script>
@@ -1610,7 +1610,7 @@ async function sendTyped(){
   } else await turn(q);
 }
 $('send').onclick=sendTyped;
-input.addEventListener('keydown',function(e){if(e.key==='Enter')sendTyped()});
+input.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();sendTyped()}});
 
 // ---- voice recording ----
 function setLive(on){live=on;silent=0;$('muteBtn').hidden=!on;if(!on){muted=false;$('muteBtn').textContent='Mute'}$('talk').classList.toggle('on',on);document.body.classList.toggle('live',on);$('talk').textContent=on?'Stop':'Talk live';
