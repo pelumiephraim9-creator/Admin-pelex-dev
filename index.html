@@ -848,6 +848,20 @@ aside,.nav,.nav:visited,.sidefoot .nav,.top,.top button,.top a,
  .file-card-actions button{min-width:36px;padding:6px}
 }
 
+
+.file-card{flex-wrap:nowrap;align-items:center}.file-card-info{flex:1 1 auto;min-width:0}
+.file-name-preview{padding:0;border:0;background:transparent;color:var(--ink);font:inherit;font-weight:650;text-align:left;cursor:pointer;overflow-wrap:anywhere}
+.file-name-preview:hover{text-decoration:underline}.file-card-actions{flex:0 0 auto}
+.file-card-actions button{display:grid;place-items:center;width:40px;height:40px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);cursor:pointer}
+.file-download-icon svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#pelexFilePreview{position:fixed;z-index:180;inset:0 0 0 auto;width:min(680px,94vw);height:100dvh;background:var(--panel);border-left:1px solid var(--line);box-shadow:-18px 0 50px rgba(8,18,35,.18);display:flex;flex-direction:column;transform:translateX(105%);transition:transform .22s ease}
+#pelexFilePreview.open{transform:translateX(0)}#pelexFilePreview[hidden]{display:none}
+#pelexFilePreview .pf-head{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);min-height:58px}
+#pelexFilePreview .pf-title{font-weight:650;min-width:0;flex:1;overflow-wrap:anywhere;color:var(--ink)}
+#pelexFilePreview button{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:9px;min-width:38px;min-height:38px;cursor:pointer}
+#pelexFilePreview iframe{border:0;flex:1;width:100%;background:#fff}#pelexFilePreview .pf-note{padding:8px 14px;color:var(--muted);font-size:12px;border-top:1px solid var(--line)}
+@media(max-width:700px){#pelexFilePreview{width:100vw}}
+
 </style>
 </head>
 <body>
@@ -1322,16 +1336,15 @@ function add(t,cls,img,retryFn){try{if(typeof t==='string'&&t){var hh=(window.__
     var dlRe=/\[Download ([^\]]+)\]\((https?:\/\/[^\s)]+)\)/gi,pvRe=/\[Preview ([^\]]+)\]\((https?:\/\/[^\s)]+)\)/gi,mF,files=[];
     while((mF=dlRe.exec(t))!==null)files.push({name:mF[1],downloadUrl:mF[2],previewUrl:null});
     while((mF=pvRe.exec(t))!==null){var fnd=files.filter(function(f){return f.name===mF[1]})[0];if(fnd)fnd.previewUrl=mF[2];else files.push({name:mF[1],previewUrl:mF[2],downloadUrl:mF[2]})}
+    if(files.length){var clean=t.replace(/\[(?:Download|Preview) [^\]]+\]\(https?:\/\/[^\s)]+\)/gi,'').replace(/\n{3,}/g,'\n\n').trim();textNode.textContent='';if(window.mdRender&&clean)textNode.appendChild(window.mdRender(clean));else textNode.textContent=clean}
     files.forEach(function(file){
       var card=document.createElement('div');card.className='file-card';
       var info=document.createElement('div');info.className='file-card-info';
-      var title=document.createElement('strong');title.textContent=file.name;
-      var lab=document.createElement('span');lab.textContent='Generated file';
-      info.appendChild(title);info.appendChild(lab);
+      var title=document.createElement('button');title.type='button';title.className='file-name-preview';title.textContent=file.name;title.setAttribute('data-preview-url',file.previewUrl||file.downloadUrl);title.setAttribute('data-preview-name',file.name);
+      var lab=document.createElement('span');lab.textContent='Select filename to preview';info.appendChild(title);info.appendChild(lab);
       var actions=document.createElement('div');actions.className='file-card-actions';
-      var pv=document.createElement('a');pv.href=file.previewUrl||file.downloadUrl;pv.target='_blank';pv.rel='noopener noreferrer';pv.textContent='Preview';pv.setAttribute('data-fc','preview');pv.setAttribute('data-name',file.name);actions.appendChild(pv);
-      var dn=document.createElement('a');dn.href=file.downloadUrl||file.previewUrl;dn.rel='noopener noreferrer';dn.textContent='Download';dn.setAttribute('data-fc','download');dn.setAttribute('data-name',file.name);actions.appendChild(dn);
-      card.appendChild(info);card.appendChild(actions);d.appendChild(card);
+      var dn=document.createElement('button');dn.type='button';dn.className='file-download-icon';dn.setAttribute('aria-label','Download '+file.name);dn.title='Download file';dn.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 19h16"/></svg>';dn.setAttribute('data-download-url',file.downloadUrl||file.previewUrl);dn.setAttribute('data-download-name',file.name);
+      actions.appendChild(dn);card.appendChild(info);card.appendChild(actions);d.appendChild(card);
     });
   }
   if(!cls){ // bot reply: add copy / thumbs / retry row
@@ -1351,18 +1364,7 @@ function add(t,cls,img,retryFn){try{if(typeof t==='string'&&t){var hh=(window.__
     down.onclick=function(){down.setAttribute('aria-pressed','true');up.setAttribute('aria-pressed','false');fb.textContent='Thanks, noted.'};
     if(t.length>180){
       var esc=function(x){return String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')};
-      var docHtml=function(){return '<html><head><meta charset="utf-8"><title>Pelex</title><style>body{font-family:Arial,sans-serif;line-height:1.55;max-width:720px;margin:32px auto;padding:0 16px}pre{background:#f3f4f6;padding:10px;white-space:pre-wrap}</style></head><body><div style="white-space:pre-wrap">'+esc(t)+'</div><p style="color:#888;font-size:12px;margin-top:30px">Made with Pelex</p><script>
-/* Auto-grow composer after typing or pasting; Enter sends, Shift+Enter adds a line. */
-(function(){
- var box=document.getElementById('in');if(!box||box.tagName!=='TEXTAREA')return;
- function fit(){box.style.height='44px';var h=Math.min(box.scrollHeight,Math.min(window.innerHeight*.42,320));box.style.height=Math.max(44,h)+'px';box.style.overflowY=box.scrollHeight>h?'auto':'hidden';}
- box.addEventListener('input',fit);
- box.addEventListener('paste',function(){setTimeout(fit,0)});
- 
- window.addEventListener('resize',fit);fit();
-})();
-<\/script>
-</body></html>'};
+      var docHtml=function(){return '<html><head><meta charset="utf-8"><title>Pelex</title><style>body{font-family:Arial,sans-serif;line-height:1.55;max-width:720px;margin:32px auto;padding:0 16px}pre{background:#f3f4f6;padding:10px;white-space:pre-wrap}</style></head><body><div style="white-space:pre-wrap">'+esc(t)+'</div><p style="color:#888;font-size:12px;margin-top:30px">Made with Pelex</p></body></html>'};
       var pdf=document.createElement('button');pdf.type='button';pdf.className='dl';pdf.textContent='PDF';pdf.setAttribute('aria-label','Save as PDF');
       pdf.onclick=function(){var w=window.open('','_blank');if(!w){add('Your browser blocked the PDF window. Allow pop-ups for this site and try again.','sys');return}w.document.write(docHtml());w.document.close();w.focus();setTimeout(function(){try{w.print()}catch(e){}},400)};
       var wd=document.createElement('button');wd.type='button';wd.className='dl';wd.textContent='Word';wd.setAttribute('aria-label','Save as Word document');
@@ -3512,6 +3514,21 @@ document.getElementById('pbOpen').onclick=function(){go('chat')}})();
       if(IMGX.test(a.href)){e.preventDefault();openLb(a.href,'')}
     }
   },true);
+})();
+</script>
+<section id="pelexFilePreview" hidden aria-label="File preview"><div class="pf-head"><strong class="pf-title" id="pfTitle">File preview</strong><button type="button" id="pfClose" aria-label="Close preview">×</button></div><iframe id="pfFrame" title="File preview"></iframe><div class="pf-note">Preview only · Use the download icon on the file card to save the file.</div></section><script>
+(function(){
+ var panel=document.getElementById('pelexFilePreview'),frame=document.getElementById('pfFrame'),title=document.getElementById('pfTitle');
+ function close(){panel.classList.remove('open');setTimeout(function(){panel.hidden=true;frame.src='about:blank'},220)}
+ function preview(url,name){if(!url)return;title.textContent=name||'File preview';frame.src=url;panel.hidden=false;requestAnimationFrame(function(){panel.classList.add('open')})}
+ document.addEventListener('click',function(e){
+  var p=e.target.closest&&e.target.closest('.file-name-preview');
+  if(p){preview(p.getAttribute('data-preview-url'),p.getAttribute('data-preview-name'));return}
+  var b=e.target.closest&&e.target.closest('.file-download-icon');
+  if(b){var url=b.getAttribute('data-download-url'),name=b.getAttribute('data-download-name');if(url&&typeof saveUrl==='function'){b.disabled=true;saveUrl(url,name).finally(function(){b.disabled=false})}else if(url){var a=document.createElement('a');a.href=url;a.download=name||'download';a.target='_blank';a.rel='noopener';a.click()}return}
+ });
+ document.getElementById('pfClose').addEventListener('click',close);
+ document.addEventListener('keydown',function(e){if(e.key==='Escape'&&panel&&!panel.hidden)close()});
 })();
 </script>
 </body>
