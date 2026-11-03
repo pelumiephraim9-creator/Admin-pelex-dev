@@ -716,7 +716,8 @@ async function sendEmail({ to, subject, html, text, from, idempotencyKey }) {
   if (!CFG.lockallyKey) throw new Error('Email is not set up (LOCKALLY_API_KEY missing).');
   const recipient = clip(to, 200).trim();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(recipient)) throw new Error('A valid email recipient is required.');
-  const payload = { from: from || CFG.emailFrom, to: [recipient], subject: clip(subject, 180), html: String(html || ''), text: String(text || '') };
+  // Use the configured no-reply sender consistently for welcome emails, receipts and product mail.
+  const payload = { from: from || CFG.emailNoReplyFrom, to: [recipient], subject: clip(subject, 180), html: String(html || ''), text: String(text || '') };
   if (!payload.html && !payload.text) throw new Error('Email content is empty.');
   const stableKey = clip(idempotencyKey || ('pelex-' + crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex')), 255);
   const t = withTimeout(15000); let r;
@@ -729,7 +730,12 @@ async function sendEmail({ to, subject, html, text, from, idempotencyKey }) {
     const responseText = await r.text().catch(() => '');
     if (!r.ok) throw new Error('Lockally email API answered ' + r.status + ': ' + clip(responseText, 300));
     let result = {}; try { result = responseText ? JSON.parse(responseText) : {}; } catch (e) {}
-    if (r.status !== 202 && result.status !== 'suppressed' && !r.ok) throw new Error('Lockally did not accept the email.');
+    if (result.status === 'suppressed') throw new Error('Lockally suppressed this recipient; check the address in the Lockally suppression list.');
+    if (/@test\\.lockally\\.com$/i.test(String(result.message_id || ''))) throw new Error('Lockally accepted this as a test-mode simulation; no email was delivered. Set a live LOCKALLY_API_KEY on Render.');
+    if (r.status !== 202 || !['queued', 'scheduled'].includes(String(result.status || '').toLowerCase())) {
+      throw new Error('Lockally did not queue the email (HTTP ' + r.status + ', status: ' + clip(result.status || 'missing', 40) + ').');
+    }
+    log('email queued:', clip(result.id || result.message_id || 'accepted', 100));
     return result;
   } finally { t.done(); }
 }
