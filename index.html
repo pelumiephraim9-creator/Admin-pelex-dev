@@ -854,13 +854,14 @@ aside,.nav,.nav:visited,.sidefoot .nav,.top,.top button,.top a,
 .file-name-preview:hover{text-decoration:underline}.file-card-actions{flex:0 0 auto}
 .file-card-actions button{display:grid;place-items:center;width:40px;height:40px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);cursor:pointer}
 .file-download-icon svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#app.preview-open>main{width:calc(100% - min(680px,52vw));justify-self:start;min-width:0}
 #pelexFilePreview{position:fixed;z-index:180;inset:0 0 0 auto;width:min(680px,52vw);height:100dvh;background:var(--panel);border-left:1px solid var(--line);box-shadow:-18px 0 50px rgba(8,18,35,.18);display:flex;flex-direction:column;transform:translateX(105%);transition:transform .22s ease}
 #pelexFilePreview.open{transform:translateX(0)}#pelexFilePreview[hidden]{display:none}
 #pelexFilePreview .pf-head{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);min-height:58px}
 #pelexFilePreview .pf-title{font-weight:650;min-width:0;flex:1;overflow-wrap:anywhere;color:var(--ink)}
 #pelexFilePreview button{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:9px;min-width:38px;min-height:38px;cursor:pointer}#pfDownload{display:inline-flex;align-items:center;justify-content:center}#pfDownload svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 #pelexFilePreview iframe{border:0;flex:1;width:100%;background:#fff}#pelexFilePreview .pf-note{padding:8px 14px;color:var(--muted);font-size:12px;border-top:1px solid var(--line)}
-@media(max-width:700px){#pelexFilePreview{width:100vw}}
+@media(max-width:700px){#app.preview-open>main{width:100%;}#pelexFilePreview{width:100vw}}
 
 </style>
 </head>
@@ -3521,8 +3522,8 @@ document.getElementById('pbOpen').onclick=function(){go('chat')}})();
 <section id="pelexFilePreview" hidden aria-label="File preview"><div class="pf-head"><strong class="pf-title" id="pfTitle">File preview</strong><button type="button" id="pfDownload" aria-label="Download previewed file" title="Download"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 19h16"/></svg></button><button type="button" id="pfClose" aria-label="Close preview">×</button></div><iframe id="pfFrame" title="File preview"></iframe><div class="pf-note">Preview only · Use the download icon on the file card to save the file.</div></section><script>
 (function(){
  var panel=document.getElementById('pelexFilePreview'),frame=document.getElementById('pfFrame'),title=document.getElementById('pfTitle'),download=document.getElementById('pfDownload'),currentName='pelex-file';
- function close(){panel.classList.remove('open');setTimeout(function(){panel.hidden=true;frame.src='about:blank'},220)}
- function preview(url,name){if(!url)return;currentName=name||'pelex-file';title.textContent=currentName;try{var u=new URL(url,location.href);if(u.pathname==='/media/download')u.searchParams.set('view','1');url=u.href}catch(e){}frame.src=url;panel.hidden=false;requestAnimationFrame(function(){panel.classList.add('open')})}
+ function close(){panel.classList.remove('open');document.getElementById('app').classList.remove('preview-open');setTimeout(function(){panel.hidden=true;frame.src='about:blank'},220)}
+ function preview(url,name){if(!url)return;currentName=name||'pelex-file';title.textContent=currentName;try{var u=new URL(url,location.href);if(u.pathname==='/media/download')u.searchParams.set('view','1');url=u.href}catch(e){}frame.src=url;panel.hidden=false;document.getElementById('app').classList.add('preview-open');requestAnimationFrame(function(){panel.classList.add('open')})}
  download.addEventListener('click',function(){if(!frame.src||frame.src==='about:blank')return;var u=frame.src;try{var x=new URL(u,location.href);if(x.pathname==='/media/download')x.searchParams.delete('view');u=x.href}catch(e){}if(window.pelexSaveUrl)window.pelexSaveUrl(u,currentName);else{var a=document.createElement('a');a.href=u;a.download=currentName;document.body.appendChild(a);a.click();a.remove()}});
  document.addEventListener('click',function(e){
   var p=e.target.closest&&e.target.closest('.file-name-preview');
