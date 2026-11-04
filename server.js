@@ -754,6 +754,7 @@ async function handleUserCreated(req, res) {
   const rec = body.record || body; const email = clip(rec.email, 200).trim(), uid = clip(rec.id, 64);
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !/^[0-9a-fA-F-]{8,64}$/.test(uid)) return send(res, 400, { error: 'Missing email or user id.' });
   const name = clip(rec.name || (rec.raw_user_meta_data && (rec.raw_user_meta_data.full_name || rec.raw_user_meta_data.name)) || '', 60).trim();
+  log('user-created webhook received:', uid.slice(0, 8));
   if (sbOn()) {   // once per person: the log row is the lock
     try {
       const r = await fetch(`${CFG.sbUrl}/rest/v1/email_log`, { method: 'POST', headers: { ...sbHead(), Prefer: 'resolution=ignore-duplicates,return=representation' }, body: JSON.stringify({ user_id: uid, kind: 'welcome' }) });
@@ -768,6 +769,7 @@ async function handleUserCreated(req, res) {
     if (sbOn()) fetch(`${CFG.sbUrl}/rest/v1/email_log?user_id=eq.${encodeURIComponent(uid)}&kind=eq.welcome`, { method: 'DELETE', headers: sbHead() }).catch(() => {});   // let a retry happen
     return send(res, 502, { error: 'The email could not be sent.' });
   }
+  log('welcome email queued:', uid.slice(0, 8));
   return send(res, 200, { sent: true });
 }
 
