@@ -9,7 +9,8 @@
 //   EDGE_SECRET      Secret  a long random text. The SAME text goes into Render as EDGE_SECRET
 //   ALLOWED_ORIGINS  Text    optional, default https://pelex.tech,https://www.pelex.tech
 
-const PATHS = ['/chat', '/chat/stream', '/auth/guest'];
+const PATHS = ['/chat', '/chat/stream', '/auth/guest', '/voice/stt'];
+const GET_PATHS = ['/commands'];
 const MAX_BODY = 6500000;   // room for up to 6 attached images
 
 export default {
@@ -20,7 +21,7 @@ export default {
     const okOrigin = allowed.includes(origin);
     const cors = okOrigin ? {
       'Access-Control-Allow-Origin': origin, 'Vary': 'Origin',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Max-Age': '600',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Max-Age': '600',
     } : {};
     const reply = (status, obj) => new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...cors } });
 
@@ -29,20 +30,21 @@ export default {
     const origin_url = String(env.ORIGIN_URL).replace(/\/+$/, '');
 
     if (url.pathname === '/health' && request.method === 'GET') {
-      try { const h = await fetch(origin_url + '/health'); return new Response(h.body, { status: h.status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }); }
+      try { const h = await fetch(origin_url + '/health'); return new Response(h.body, { status: h.status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...cors } }); }
       catch (e) { return reply(502, { error: 'The server is not answering.' }); }
     }
-    if (!PATHS.includes(url.pathname)) return reply(404, { error: 'Not found' });
-    if (request.method !== 'POST') return reply(405, { error: 'Method not allowed' });
+    const isCommandsGet = url.pathname === '/commands' && request.method === 'GET';
+    if (!(PATHS.includes(url.pathname) || (GET_PATHS.includes(url.pathname) && isCommandsGet))) return reply(404, { error: 'Not found' });
     if (!okOrigin) return reply(403, { error: 'This address only works from the Pelex site.' });
-    if (!(request.headers.get('Content-Type') || '').includes('application/json')) return reply(415, { error: 'Unsupported content type.' });
-    if (Number(request.headers.get('Content-Length') || 0) > MAX_BODY) return reply(413, { error: 'Message too large.' });
+    if (!isCommandsGet && request.method !== 'POST') return reply(405, { error: 'Method not allowed' });
+    if (!isCommandsGet && !(request.headers.get('Content-Type') || '').includes('application/json')) return reply(415, { error: 'Unsupported content type.' });
+    if (!isCommandsGet && Number(request.headers.get('Content-Length') || 0) > MAX_BODY) return reply(413, { error: 'Message too large.' });
 
     const h = new Headers({ 'Content-Type': 'application/json', 'X-Pelex-Edge': env.EDGE_SECRET, 'Origin': origin });
     const ip = request.headers.get('CF-Connecting-IP'); if (ip) h.set('X-Real-Client-IP', ip);
     const auth = request.headers.get('Authorization'); if (auth) h.set('Authorization', auth);
     let up;
-    try { up = await fetch(origin_url + url.pathname, { method: 'POST', headers: h, body: request.body }); }
+    try { up = await fetch(origin_url + url.pathname + url.search, { method: isCommandsGet ? 'GET' : 'POST', headers: h, ...(isCommandsGet ? {} : { body: request.body }) }); }
     catch (e) { return reply(502, { error: 'The server is not answering. Try again in a moment.' }); }
     const out = new Headers(up.headers);
     for (const k of ['set-cookie', 'access-control-allow-origin', 'access-control-allow-headers', 'access-control-allow-methods', 'vary']) out.delete(k);
