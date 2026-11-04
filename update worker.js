@@ -39,7 +39,7 @@ export default {
     if (!env.ORIGIN_URL || !env.EDGE_SECRET) {
       return reply(500, { error: 'The shield is not set up yet.' });
     }
-    const originUrl = String(env.ORIGIN_URL).replace(/\\/+$/, '');
+    const originUrl = String(env.ORIGIN_URL).replace(/\/+$/, '');
 
     if (url.pathname === '/health' && request.method === 'GET') {
       try {
