@@ -20,7 +20,7 @@ export default {
     const okOrigin = allowed.includes(origin);
     const cors = okOrigin ? {
       'Access-Control-Allow-Origin': origin, 'Vary': 'Origin',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Max-Age': '600',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Max-Age': '600',
     } : {};
     const reply = (status, obj) => new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...cors } });
 
@@ -31,6 +31,27 @@ export default {
     if (url.pathname === '/health' && request.method === 'GET') {
       try { const h = await fetch(origin_url + '/health'); return new Response(h.body, { status: h.status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...cors } }); }
       catch (e) { return reply(502, { error: 'The server is not answering.' }); }
+    }
+    // Media links are short-lived HMAC-signed URLs created by the Render backend.
+    // Proxy them to Render so preview and download URLs can safely use this Worker hostname.
+    // The Render /media/download route verifies the signature and expiry before returning bytes.
+    if (url.pathname === '/media/download') {
+      if (request.method !== 'GET') return reply(405, { error: 'Method not allowed' });
+      try {
+        const media = await fetch(origin_url + url.pathname + url.search, {
+          method: 'GET',
+          headers: { 'Accept': request.headers.get('Accept') || '*/*' }
+        });
+        const headers = new Headers(media.headers);
+        headers.set('Cache-Control', 'private, no-store');
+        if (okOrigin) {
+          headers.set('Access-Control-Allow-Origin', origin);
+          headers.set('Vary', 'Origin');
+        }
+        return new Response(media.body, { status: media.status, statusText: media.statusText, headers });
+      } catch (e) {
+        return reply(502, { error: 'The media server is not answering. Try again shortly.' });
+      }
     }
     if (!PATHS.includes(url.pathname)) return reply(404, { error: 'Not found' });
     if (request.method !== 'POST') return reply(405, { error: 'Method not allowed' });
