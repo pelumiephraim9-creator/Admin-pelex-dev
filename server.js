@@ -499,7 +499,7 @@ async function runTool(name, args, run) {
     if (name === 'country_info') return await country(args.country);
     const x = EXT.get(name);
     if (x) {
-      const out = await x.run(args || {}, { CFG, getJson, clip, withTimeout, log, saveFile, sbOn, sbFetch, who: run && run.who });
+      const out = await x.run(args || {}, { CFG, getJson, clip, withTimeout, log, saveFile, sbOn, sbFetch, who: run && run.who, images: run && run.images, intent: run && run.intent });
       if (out && typeof out === 'object') { if (run && out.markdown) run.attachments.push(String(out.markdown)); return clip(String(out.text || ''), 12000); }
       return clip(String(out), 12000);
     }
@@ -640,6 +640,14 @@ async function runAgent({ sid, text, meta, onStep, images, privacy, clientHistor
   const userMsg = imgs.length ? { role: 'user', content: [{ type: 'text', text }, ...imgs.map(u => ({ type: 'image_url', image_url: { url: u } }))] } : { role: 'user', content: text };
   const messages = [{ role: 'system', content: systemPrompt(meta) }, ...history, userMsg];
   const steps = []; let answer = ''; const run = { attachments: [], who: { uid: uid || null, sid } };
+  run.images = imgs; run.intent = (meta && meta.intent) || '';
+  if (imgs.length && run.intent === 'edit') {   // an attached picture with an edit request goes straight to the editor, not the chat model
+    const outEdit = await runTool('image_generate', { mode: 'edit', prompt: text }, run);
+    let answerEdit = String(outEdit || '').trim();
+    for (const md of run.attachments) if (!answerEdit.includes(md)) answerEdit += '\n\n' + md;
+    await saveTurn({ sid, userId: uid, agentId, userText: savedText + ` [${imgs.length} image${imgs.length > 1 ? 's' : ''} attached]`, answer: answerEdit });
+    return { output: answerEdit, steps: ['Editing the picture'] };
+  }
   for (let round = 0; round <= CFG.maxToolRounds; round++) {
     if (Date.now() - started > CFG.totalTimeoutMs) throw new Error('That took too long.');
     const useTools = round < CFG.maxToolRounds;
