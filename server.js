@@ -641,6 +641,14 @@ async function runAgent({ sid, text, meta, onStep, images, privacy, clientHistor
   const messages = [{ role: 'system', content: systemPrompt(meta) }, ...history, userMsg];
   const steps = []; let answer = ''; const run = { attachments: [], who: { uid: uid || null, sid } };
   run.images = imgs; run.intent = (meta && meta.intent) || '';
+  if (run.intent === 'videos') {   // Spotlight: recent, most watched videos for one interest; no chat model
+    const outV = await runTool('find_videos', { interest: (meta && meta.interest) || text }, run);
+    return { output: String(outV || ''), steps: ['Finding videos'] };
+  }
+  if (imgs.length && run.intent === 'extract') {   // a document picture: return its rows for review, save nothing
+    const outDoc = await runTool('read_document', { prompt: text }, run);
+    return { output: String(outDoc || ''), steps: ['Reading the document'] };
+  }
   if (imgs.length && run.intent === 'edit') {   // an attached picture with an edit request goes straight to the editor, not the chat model
     const outEdit = await runTool('image_generate', { mode: 'edit', prompt: text }, run);
     let answerEdit = String(outEdit || '').trim();
