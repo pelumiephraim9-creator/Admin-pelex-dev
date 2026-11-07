@@ -86,6 +86,9 @@ async function tick(ctx) {
     const rows = await rpc(ctx, 'claim_due_scheduled_tasks_v2', {
       p_limit: 3, p_lock_seconds: 300
     });
+    // Advertise scheduling only after the database confirms that the canonical
+    // claim RPC exists and is callable with the service-role credentials.
+    if (ctx.COMMANDS && typeof ctx.COMMANDS.setFeature === 'function') ctx.COMMANDS.setFeature('scheduled', true);
     if (!Array.isArray(rows) || !rows.length) return;
     ctx.log('scheduler claimed tasks:', rows.length);
     for (const row of rows) {
@@ -101,7 +104,6 @@ module.exports = {
   tick,
   start(ctx) {
     if (!ctx.sbOn()) { ctx.log('scheduler not started: Supabase is not configured'); return; }
-    if (ctx.COMMANDS && typeof ctx.COMMANDS.setFeature === 'function') ctx.COMMANDS.setFeature('scheduled', true);
     const timer = setInterval(() => tick(ctx), 30000);
     timer.unref();
     const first = setTimeout(() => tick(ctx), 5000);
