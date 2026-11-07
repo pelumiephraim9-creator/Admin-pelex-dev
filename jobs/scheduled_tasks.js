@@ -51,6 +51,12 @@ async function processTask(ctx, row) {
     if (!row.user_id) throw new Error('Scheduled task has no owner user_id.');
     const requestedBot = String(row.bot || 'general').trim().toLowerCase();
     const bot = toCanonicalAgent(requestedBot);
+    const channel = String(row.channel || 'website').toLowerCase();
+    if (!ALLOWED_CHANNELS.has(channel)) {
+      const error = new Error(`Unsupported scheduled-task channel: ${channel}`);
+      error.permanent = true;
+      throw error;
+    }
     const agent = AGENTS.getAgent(bot);
     if (!agent || !agent.implemented) {
       const error = new Error(`The ${bot} agent is registered but its execution module is not implemented yet.`);
