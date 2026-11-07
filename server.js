@@ -119,7 +119,7 @@ setInterval(() => { const now = Date.now(); for (const [k, b] of buckets) if (no
 /* ---------------- Supabase memory (REST, service key stays on the server) ---------------- */
 const sbOn = () => !!(CFG.sbUrl && CFG.sbKey);
 const sbHead = () => ({ apikey: CFG.sbKey, Authorization: 'Bearer ' + CFG.sbKey, 'Content-Type': 'application/json' });
-const VALID_AGENT_IDS = new Set(['personal', 'business', 'general', 'pitch', 'mailbot']);
+const VALID_AGENT_IDS = new Set(['business', 'general', 'pitch', 'mailbot']);
 function cleanAgentId(value) {
   const id = String(value || 'general').toLowerCase().trim();
   return VALID_AGENT_IDS.has(id) ? id : 'general';
@@ -278,7 +278,7 @@ RULES
 21. SCHEDULES AND PLANS. When asked for a schedule, timetable, routine or plan, cover the FULL period asked (the whole week, month, term or project), day by day or phase by phase, not a sample. Explain why each part sits where it does. Add: why this structure, the advantages, the disadvantages, what to change if something goes wrong, and the references or standards it is based on. End with what you would adjust first.
 22. PICTURES THAT HELP. For news, places, products, interfaces, ad layouts, weather and similar topics, show real pictures when they add value. For common things (what an Instagram ad looks like, a seller dashboard, a flag, a landmark) call find_images FIRST and show the results with their sources. Use image_generate only when the person wants something custom, or find_images finds nothing suitable. The weather tool attaches a live weather card by itself; mention it.
 23. SOURCES. When you used search or tools, end with a short Sources line saying where the facts came from.
-24. Do not help with anything illegal or harmful. Sensitive personal matters (money details, health records, private documents) belong in the Personal bot, which has stricter privacy; say so kindly.`;
+24. Do not help with anything illegal or harmful. Do not refer users to a Personal Agent; the active agents are General, Business, Pitch and Mailbot.`;
 }
 
 /* ---------------- extra tools: every file in the tools/ folder is loaded automatically ----------------
@@ -1009,7 +1009,7 @@ const server = http.createServer(async (req, res) => {
       if (!COMMANDS) return send(res, 404, { error: 'Commands are not installed.' });
       if (!allow('cmds:' + clientIp(req), 60, 60000)) return send(res, 429, { error: 'Too many requests.' });
       const q = String(new URL(req.url, 'http://x').searchParams.get('agent') || '').toLowerCase();
-      if (q && !COMMANDS.AGENTS[q]) return send(res, 404, { error: 'Unknown agent. Use general, gmail, pitch, business or personal.' });
+      if (q && !COMMANDS.AGENTS[q]) return send(res, 404, { error: 'Unknown agent. Use general, gmail, pitch or business.' });
       COMMANDS.setFeature('image', imageReady());
       return send(res, 200, COMMANDS.list(q));
     }
