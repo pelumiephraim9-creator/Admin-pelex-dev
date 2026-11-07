@@ -1030,10 +1030,12 @@ const server = http.createServer(async (req, res) => {
       syncAgentReadiness();
       const rawAgent = String(new URL(req.url, 'http://x').searchParams.get('agent') || '').toLowerCase();
       const q = rawAgent === 'mailbot' ? 'gmail' : rawAgent;
-      if (q === 'personal') return send(res, 404, { error: 'Personal Agent is retired. Available agents: general, business, pitch and mailbot.' });
-      if (q && !COMMANDS.AGENTS[q]) return send(res, 404, { error: 'Unknown agent. Use general, business, pitch or mailbot.' });
+      // Old clients may request commands for the retired Personal Agent.
+      // Serve General commands instead of breaking the chat menu.
+      const selectedAgent = q === 'personal' ? 'general' : q;
+      if (selectedAgent && !COMMANDS.AGENTS[selectedAgent]) return send(res, 404, { error: 'Unknown agent. Use general, business, pitch or mailbot.' });
       COMMANDS.setFeature('image', imageReady());
-      return send(res, 200, COMMANDS.list(q));
+      return send(res, 200, COMMANDS.list(selectedAgent));
     }
     if (req.method === 'POST' && path === '/hooks/user-created') return await handleUserCreated(req, res);
     if (req.method === 'POST' && path === '/hooks/paystack') return await handlePaystackWebhook(req, res);
