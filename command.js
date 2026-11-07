@@ -12,10 +12,10 @@ const AGENTS = {
   business: { ready: ON.has('business'), label: 'Business Agent' },
 };
 // features the site shows as "Soon" until they are really running. The site reads this and updates itself; FEATURES_ON=connectors,artcraft turns more on.
-const FEATURES = { chat: true, commands: true, image: false, scheduled: false, pitchcheck: false, connectors: false, artcraft: false, whatsapp: false, telegram: false, notifications: false, ads: false };
+const FEATURES = { chat: true, commands: true, image: false, scheduled: false, pitchcheck: false, connectors: false, artcraft: false, notifications: false, ads: false };
 for (const k of (process.env.FEATURES_ON || '').split(',').map(x => x.trim()).filter(Boolean)) if (k !== 'ads') FEATURES[k] = true;
 const setFeature = (k, v) => { if (k in FEATURES && k !== 'ads') FEATURES[k] = !!v; };
-const CHANNELS = { web: { ready: true }, telegram: { ready: !!process.env.TELEGRAM_READY }, whatsapp: { ready: !!process.env.WHATSAPP_READY } };
+const CHANNELS = { web: { ready: true } };
 
 // [name, aliases, category, description, usage, hint for the model, task lane]
 const g = (name, aliases, category, description, usage, hint, task) => ({ name, aliases, agent: 'general', category, description, usage, example: usage.replace(/<[^>]+>/g, m => ({ '<text>': 'your text here' }[m] || m.slice(1, -1))), implemented: true, hint, task: task || null, args: /^\/\S+ </.test(usage) ? 'required' : 'optional' });
