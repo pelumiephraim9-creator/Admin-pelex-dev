@@ -954,8 +954,11 @@ async function handleChat(req, res, stream) {
   const meta = Object.assign({}, body.metadata && typeof body.metadata === 'object' ? body.metadata : {});
   const clientHistory = sanitizeHistory(meta.history, text); delete meta.history;
   syncAgentReadiness();
-  const requestedAgent = String(meta.agent || 'general').toLowerCase().trim();
-  if (requestedAgent === 'personal') return send(res, 400, { error: 'The Personal Agent is no longer available. Choose General, Business, Pitch or Mailbot.' });
+  // Backward compatibility: older browser sessions may still send the retired
+  // `personal` agent id. Never reject the chat; safely route that stale choice
+  // to General until the frontend clears its saved selection.
+  const incomingAgent = String(meta.agent || 'general').toLowerCase().trim();
+  const requestedAgent = incomingAgent === 'personal' ? 'general' : incomingAgent;
   const normalizedAgent = requestedAgent === 'mailbot' ? 'gmail' : requestedAgent;
   const agentName = COMMANDS && COMMANDS.AGENTS[normalizedAgent] ? normalizedAgent : 'general';
   const agentId = agentName === 'gmail' ? 'mailbot' : cleanAgentId(agentName);
