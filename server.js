@@ -39,6 +39,16 @@ for (const candidate of ['./commands.js', './command.js']) {
   catch (e) { if (e.code !== 'MODULE_NOT_FOUND' || !String(e.message).includes(candidate)) { console.log('slash commands not loaded:', e.message); break; } }
 }
 if (!COMMANDS) console.log('slash commands not loaded: neither commands.js nor command.js exists');
+const AGENT_REGISTRY = require('./registry');
+function syncAgentReadiness() {
+  if (!COMMANDS || !COMMANDS.AGENTS) return;
+  const readiness = Object.fromEntries(AGENT_REGISTRY.listAgents().map(a => [a.id, a.ready]));
+  if (COMMANDS.AGENTS.general) COMMANDS.AGENTS.general.ready = !!readiness.general;
+  if (COMMANDS.AGENTS.business) COMMANDS.AGENTS.business.ready = !!readiness.business;
+  if (COMMANDS.AGENTS.pitch) COMMANDS.AGENTS.pitch.ready = !!readiness.pitch;
+  if (COMMANDS.AGENTS.gmail) COMMANDS.AGENTS.gmail.ready = !!readiness.gmail;
+}
+syncAgentReadiness();
 
 const ENV = process.env;
 const CFG = {
@@ -940,6 +950,7 @@ async function handleChat(req, res, stream) {
   if (!allow('day:' + ip, 600, 86400000)) return send(res, 429, { error: 'Daily limit reached. Please come back tomorrow.' });
   const meta = Object.assign({}, body.metadata && typeof body.metadata === 'object' ? body.metadata : {});
   const clientHistory = sanitizeHistory(meta.history, text); delete meta.history;
+  syncAgentReadiness();
   const requestedAgent = String(meta.agent || 'general').toLowerCase().trim();
   if (requestedAgent === 'personal') return send(res, 400, { error: 'The Personal Agent is no longer available. Choose General, Business, Pitch or Mailbot.' });
   const normalizedAgent = requestedAgent === 'mailbot' ? 'gmail' : requestedAgent;
@@ -1010,6 +1021,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && path === '/commands') {
       if (!COMMANDS) return send(res, 404, { error: 'Commands are not installed.' });
       if (!allow('cmds:' + clientIp(req), 60, 60000)) return send(res, 429, { error: 'Too many requests.' });
+      syncAgentReadiness();
       const rawAgent = String(new URL(req.url, 'http://x').searchParams.get('agent') || '').toLowerCase();
       const q = rawAgent === 'mailbot' ? 'gmail' : rawAgent;
       if (q === 'personal') return send(res, 404, { error: 'Personal Agent is retired. Available agents: general, business, pitch and mailbot.' });
