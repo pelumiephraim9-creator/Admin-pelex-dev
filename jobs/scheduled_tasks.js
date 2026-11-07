@@ -42,7 +42,13 @@ async function processTask(ctx, row) {
     // must not abort the rest of the batch or strand their claim locks.
     if (!row.id || !token) throw new Error('Claimed task is missing its fencing token.');
     if (!row.user_id) throw new Error('Scheduled task has no owner user_id.');
-    const bot = toCanonicalAgent(row.bot);
+    const requestedBot = String(row.bot || 'general').trim().toLowerCase();
+    if (requestedBot === 'personal') {
+      const error = new Error('The Personal Agent is retired and is not available for scheduled tasks.');
+      error.permanent = true;
+      throw error;
+    }
+    const bot = toCanonicalAgent(requestedBot);
     const agent = AGENTS.getAgent(bot);
     if (!agent || !agent.implemented) {
       const error = new Error(`The ${bot} agent is registered but its execution module is not implemented yet.`);
