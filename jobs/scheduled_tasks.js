@@ -1,18 +1,16 @@
 'use strict';
 
 const { nextAfter } = require('./scheduler_recurrence');
+const AGENTS = require('../registry');
 
 const MAX_RESULT_CHARS = 18000;
-const ALLOWED_BOTS = new Set(['personal', 'business', 'general', 'pitch', 'mailbot']);
 const ALLOWED_CHANNELS = new Set(['website']);
 
 function safeText(v, max = 4000) {
   return String(v == null ? '' : v).replace(/\u0000/g, '').slice(0, max);
 }
 function toCanonicalAgent(bot) {
-  const b = String(bot || 'general').toLowerCase();
-  if (b === 'gmail' || b === 'mail') return 'mailbot';
-  return ALLOWED_BOTS.has(b) ? b : 'general';
+  return AGENTS.canonicalAgentId(bot);
 }
 async function rpc(ctx, name, body) {
   const r = await ctx.sbFetch('/rest/v1/rpc/' + name, {
@@ -27,8 +25,15 @@ async function rpc(ctx, name, body) {
   return r.json().catch(() => null);
 }
 async function deliver(ctx, row, result) {
-  // Pelex delivers scheduled results only inside the app (scheduled_tasks.last_result).
-  return { confirmed: true, result };
+  // The current supported channel is in-app website storage only.
+  // Saving last_result is not proof that a user opened or received a notification.
+  const channel = String(row.channel || 'website').toLowerCase();
+  if (!ALLOWED_CHANNELS.has(channel)) {
+    const error = new Error(`Unsupported scheduled-task channel: ${channel}`);
+    error.permanent = true;
+    throw error;
+  }
+  return { confirmed: false, result };
 }
 async function processTask(ctx, row) {
   const token = row.claim_token;
@@ -38,6 +43,12 @@ async function processTask(ctx, row) {
     if (!row.id || !token) throw new Error('Claimed task is missing its fencing token.');
     if (!row.user_id) throw new Error('Scheduled task has no owner user_id.');
     const bot = toCanonicalAgent(row.bot);
+    const agent = AGENTS.getAgent(bot);
+    if (!agent || !agent.implemented) {
+      const error = new Error(`The ${bot} agent is registered but its execution module is not implemented yet.`);
+      error.permanent = true;
+      throw error;
+    }
     if (!row.instruction || !String(row.instruction).trim()) throw new Error('Scheduled task has no instruction.');
     const output = await ctx.runAgent({
       sid: `sched-${row.id}`,
@@ -71,7 +82,7 @@ async function processTask(ctx, row) {
       await rpc(ctx, 'fail_scheduled_task_v2', {
         p_task_id: row.id, p_claim_token: token,
         p_error: safeText(err.message, 1800),
-        p_max_attempts: 3, p_retry_seconds: 300
+        p_max_attempts: err.permanent ? 1 : 3, p_retry_seconds: 300
       });
     } catch (failErr) {
       ctx.log('could not release failed scheduled task:', row.id, failErr.message);
