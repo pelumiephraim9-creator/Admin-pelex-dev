@@ -4,12 +4,12 @@
    A command with implemented:false belongs to an agent that is not built yet. It answers "not connected" and never calls a model.
    To add a command, add one line to GENERAL (or to AGENTS for a future agent). Nothing else changes. */
 
-const ON = new Set(('general,' + (process.env.AGENTS_READY || '')).split(',').map(x => x.trim().toLowerCase()).filter(Boolean));   // AGENTS_READY=business,pitch,mailbot enables registered agent implementations
+// Future-agent readiness is synchronized from registry.js by the server; environment flags cannot enable an unimplemented agent.
 const AGENTS = {
   general:  { ready: true,  label: 'General Agent' },
-  gmail:    { ready: ON.has('mailbot') || ON.has('gmail'), label: 'Mailbot Agent', canonicalId: 'mailbot' },
-  pitch:    { ready: ON.has('pitch'),    label: 'Pitch Agent' },
-  business: { ready: ON.has('business'), label: 'Business Agent' },
+  gmail:    { ready: false, label: 'Mailbot Agent', canonicalId: 'mailbot' },
+  pitch:    { ready: false, label: 'Pitch Agent' },
+  business: { ready: false, label: 'Business Agent' },
 };
 // features the site shows as "Soon" until they are really running. The site reads this and updates itself; FEATURES_ON=connectors,artcraft turns more on.
 const FEATURES = { chat: true, commands: true, image: false, scheduled: false, pitchcheck: false, connectors: false, artcraft: false, notifications: false, ads: false };
