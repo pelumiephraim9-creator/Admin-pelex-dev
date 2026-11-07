@@ -7,7 +7,7 @@ Pelex is a multi-agent backend designed to grow through committed agent and tool
 - **Render** runs the Node.js API from the repository-root `server.js` using `npm start`.
 - **Cloudflare Worker** (`worker.js`) is the public edge proxy between the Pelex frontend and Render. It forwards supported API requests; it is not a second agent backend.
 - **Supabase** provides persistent memory, media storage and scheduled-task records.
-- **Agent registry** (`registry.js`) defines canonical agent IDs, labels, readiness and agent capabilities.
+- **Agent registry** (`registry.js`) defines canonical agent IDs and automatically discovers agent modules in `agents/*.js`.
 - **Command registry** (`command.js`) supplies the shared slash-command catalogue and feature state to the frontend and chat router.
 - **Tools** in `tools/*.js` are discovered and loaded by the backend at startup.
 - **Background jobs** in `jobs/*.js` are discovered and started by the backend at startup.
@@ -29,13 +29,13 @@ Use canonical IDs in database records and backend code. Keep aliases at the UI b
 
 New agent work should extend the shared structure rather than fork the backend:
 
-1. Add the agent's canonical ID, display label and capabilities to `registry.js`.
-2. Add its UI/command identity and readiness information in `command.js`.
-3. Add the agent implementation in the established agent module location, keeping its instructions and execution logic separate from other agents.
-4. Register the implementation with the shared agent execution path. Do not mark an agent ready until its implementation and required integrations are connected.
-5. Add only the tools the agent actually needs under `tools/`; tools are shared modules and should not be duplicated per agent.
-6. Add focused tests for the new agent, its routing, permissions/data boundaries and tool calls.
-7. Update this README and `REQUIREMENTS_AND_STATUS.md` when the implementation state changes.
+1. Add the canonical ID and default definition to `registry.js` if it is a new agent.
+2. Create `agents/<agent-id>.js` using the module contract in `agents/README.md`. Existing IDs are `business`, `pitch` and `mailbot`.
+3. Add its UI/command identity to `command.js`.
+4. Export a clear label and non-empty agent instructions. The shared registry discovers the file automatically.
+5. Set `implemented: true` only after its required workflows and integrations are connected and tested. Runtime readiness is derived from the registry, not an environment flag.
+6. Add shared tools under `tools/` and background jobs under `jobs/` as needed; do not duplicate shared services.
+7. Add focused tests and update this README and `REQUIREMENTS_AND_STATUS.md`.
 
 An unfinished agent must remain registered as not ready; it must not be silently routed to another agent's private context or claim to have completed an action.
 
@@ -122,7 +122,8 @@ A live task execution still needs to be verified after Render deployment.
 ```
 server.js                 Main Render API and shared agent execution
 worker.js                 Cloudflare public edge proxy
-registry.js               Canonical agent registry
+registry.js               Canonical agent registry and module discovery
+agents/                   Auto-discovered agent-specific instruction modules
 command.js                Shared commands, channels and feature state
 jobs/                     Auto-loaded background jobs and scheduler
 tools/                    Auto-loaded shared tool modules
