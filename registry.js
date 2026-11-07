@@ -22,11 +22,6 @@ const DEFINITIONS = {
     implemented: false, requiresAuth: true,
     tools: ['remote_jobs', 'pitch_link_check', 'resume_read', 'application_draft']
   },
-  personal: {
-    id: 'personal', uiId: 'personal', label: 'Personal Agent',
-    implemented: false, requiresAuth: true,
-    tools: ['private_files', 'personal_notes', 'calendar_read', 'task_management']
-  },
   mailbot: {
     id: 'mailbot', uiId: 'gmail', label: 'Gmail Agent',
     implemented: false, requiresAuth: true,
