@@ -10,7 +10,6 @@ const AGENTS = {
   gmail:    { ready: ON.has('gmail'),    label: 'Gmail Agent' },
   pitch:    { ready: ON.has('pitch'),    label: 'Pitch Agent' },
   business: { ready: ON.has('business'), label: 'Business Agent' },
-  personal: { ready: ON.has('personal'), label: 'Personal Agent' },
 };
 // features the site shows as "Soon" until they are really running. The site reads this and updates itself; FEATURES_ON=connectors,artcraft turns more on.
 const FEATURES = { chat: true, commands: true, image: false, scheduled: false, pitchcheck: false, connectors: false, artcraft: false, whatsapp: false, telegram: false, notifications: false, ads: false };
@@ -75,11 +74,6 @@ const FUTURE = [
   a('business', 'business', ['biz'], 'Talk to your Business bot', '/business <message>'),
   a('business', 'faq', [], 'Manage your customer FAQ', '/faq <question>'),
   a('business', 'customers', [], 'See customer conversations', '/customers'),
-  a('personal', 'personal', ['me'], 'Talk to your Personal bot', '/personal <message>'),
-  a('personal', 'remind', ['reminder'], 'Set a reminder', '/remind <what and when>'),
-  a('personal', 'note', ['notes'], 'Save a private note', '/note <text>'),
-  a('personal', 'task', ['todo', 'tasks'], 'Add or list tasks', '/task <text>'),
-  a('personal', 'calendar', ['cal'], 'Check or add calendar events', '/calendar <when>'),
 ];
 const REGISTRY = GENERAL.concat(FUTURE);
 
