@@ -1,0 +1,21 @@
+name: Backend checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check JavaScript syntax
+        run: |
+          find . -path './.git' -prune -o -name '*.js' -type f -print0 | xargs -0 -n1 node --check
+      - name: Run backend foundation tests
+        run: npm test
