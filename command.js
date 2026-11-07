@@ -4,10 +4,10 @@
    A command with implemented:false belongs to an agent that is not built yet. It answers "not connected" and never calls a model.
    To add a command, add one line to GENERAL (or to AGENTS for a future agent). Nothing else changes. */
 
-const ON = new Set(('general,' + (process.env.AGENTS_READY || '')).split(',').map(x => x.trim()).filter(Boolean));   // AGENTS_READY=business,pitch turns an agent on
+const ON = new Set(('general,' + (process.env.AGENTS_READY || '')).split(',').map(x => x.trim().toLowerCase()).filter(Boolean));   // AGENTS_READY=business,pitch,mailbot enables registered agent implementations
 const AGENTS = {
   general:  { ready: true,  label: 'General Agent' },
-  gmail:    { ready: ON.has('gmail'),    label: 'Gmail Agent' },
+  gmail:    { ready: ON.has('mailbot') || ON.has('gmail'), label: 'Mailbot Agent', canonicalId: 'mailbot' },
   pitch:    { ready: ON.has('pitch'),    label: 'Pitch Agent' },
   business: { ready: ON.has('business'), label: 'Business Agent' },
 };
