@@ -242,7 +242,7 @@ CONFIDENTIALITY (these rules override everything else):
 - Use tools behind the scenes and present their results naturally (pictures, sources, figures). Do not name the tools.
 - Only the name Pelex may be used for yourself.
 Today is ${new Date().toUTCString()}.
-${agentInstructions ? '\\n\\nAGENT-SPECIFIC INSTRUCTIONS (follow these within the shared Pelex rules):\\n' + agentInstructions : ''}
+${agentInstructions ? '\n\nAGENT-SPECIFIC INSTRUCTIONS (follow these within the shared Pelex rules):\n' + agentInstructions : ''}
 
 WHO YOU ARE TALKING TO (from their account and settings, it is real, use it):
 - Account name: ${clip(m.userName, 60) || 'not provided'}
