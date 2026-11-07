@@ -23,7 +23,7 @@ const DEFINITIONS = {
     tools: ['remote_jobs', 'pitch_link_check', 'resume_read', 'application_draft']
   },
   mailbot: {
-    id: 'mailbot', uiId: 'gmail', label: 'Gmail Agent',
+    id: 'mailbot', uiId: 'gmail', label: 'Mailbot Agent',
     implemented: false, requiresAuth: true,
     tools: ['gmail_read', 'gmail_draft', 'gmail_send']
   }
