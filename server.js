@@ -940,8 +940,10 @@ async function handleChat(req, res, stream) {
   if (!allow('day:' + ip, 600, 86400000)) return send(res, 429, { error: 'Daily limit reached. Please come back tomorrow.' });
   const meta = Object.assign({}, body.metadata && typeof body.metadata === 'object' ? body.metadata : {});
   const clientHistory = sanitizeHistory(meta.history, text); delete meta.history;
-  const requestedAgent = String(meta.agent || 'general').toLowerCase();
-  const agentName = COMMANDS && COMMANDS.AGENTS[requestedAgent] ? requestedAgent : 'general';
+  const requestedAgent = String(meta.agent || 'general').toLowerCase().trim();
+  if (requestedAgent === 'personal') return send(res, 400, { error: 'The Personal Agent is no longer available. Choose General, Business, Pitch or Mailbot.' });
+  const normalizedAgent = requestedAgent === 'mailbot' ? 'gmail' : requestedAgent;
+  const agentName = COMMANDS && COMMANDS.AGENTS[normalizedAgent] ? normalizedAgent : 'general';
   const agentId = agentName === 'gmail' ? 'mailbot' : cleanAgentId(agentName);
   const agentFallback = meta.fallback; delete meta.agent; delete meta.fallback;
   if (COMMANDS && agentName !== 'general' && COMMANDS.AGENTS[agentName] && !COMMANDS.AGENTS[agentName].ready && agentFallback !== 'general')
@@ -1008,8 +1010,10 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && path === '/commands') {
       if (!COMMANDS) return send(res, 404, { error: 'Commands are not installed.' });
       if (!allow('cmds:' + clientIp(req), 60, 60000)) return send(res, 429, { error: 'Too many requests.' });
-      const q = String(new URL(req.url, 'http://x').searchParams.get('agent') || '').toLowerCase();
-      if (q && !COMMANDS.AGENTS[q]) return send(res, 404, { error: 'Unknown agent. Use general, gmail, pitch or business.' });
+      const rawAgent = String(new URL(req.url, 'http://x').searchParams.get('agent') || '').toLowerCase();
+      const q = rawAgent === 'mailbot' ? 'gmail' : rawAgent;
+      if (q === 'personal') return send(res, 404, { error: 'Personal Agent is retired. Available agents: general, business, pitch and mailbot.' });
+      if (q && !COMMANDS.AGENTS[q]) return send(res, 404, { error: 'Unknown agent. Use general, business, pitch or mailbot.' });
       COMMANDS.setFeature('image', imageReady());
       return send(res, 200, COMMANDS.list(q));
     }
