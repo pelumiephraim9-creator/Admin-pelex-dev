@@ -10,7 +10,14 @@ function safeText(v, max = 4000) {
   return String(v == null ? '' : v).replace(/\u0000/g, '').slice(0, max);
 }
 function toCanonicalAgent(bot) {
-  return AGENTS.canonicalAgentId(bot);
+  const raw = String(bot || 'general').trim().toLowerCase();
+  const supported = new Set(['general', 'business', 'pitch', 'mailbot', 'gmail', 'mail']);
+  if (!supported.has(raw)) {
+    const error = new Error(`Unknown or retired agent ID: ${raw || '(empty)'}. Supported agents: general, business, pitch and mailbot.`);
+    error.permanent = true;
+    throw error;
+  }
+  return AGENTS.canonicalAgentId(raw);
 }
 async function rpc(ctx, name, body) {
   const r = await ctx.sbFetch('/rest/v1/rpc/' + name, {
@@ -43,11 +50,6 @@ async function processTask(ctx, row) {
     if (!row.id || !token) throw new Error('Claimed task is missing its fencing token.');
     if (!row.user_id) throw new Error('Scheduled task has no owner user_id.');
     const requestedBot = String(row.bot || 'general').trim().toLowerCase();
-    if (requestedBot === 'personal') {
-      const error = new Error('The Personal Agent is retired and is not available for scheduled tasks.');
-      error.permanent = true;
-      throw error;
-    }
     const bot = toCanonicalAgent(requestedBot);
     const agent = AGENTS.getAgent(bot);
     if (!agent || !agent.implemented) {
@@ -119,6 +121,7 @@ async function tick(ctx) {
 module.exports = {
   name: 'scheduled_tasks',
   tick,
+  processTask,
   start(ctx) {
     if (!ctx.sbOn()) { ctx.log('scheduler not started: Supabase is not configured'); return; }
     const timer = setInterval(() => tick(ctx), 30000);
