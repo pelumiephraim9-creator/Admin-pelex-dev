@@ -32,7 +32,7 @@ const DEFINITIONS = {
 function canonicalAgentId(value) {
   const id = String(value || 'general').trim().toLowerCase();
   if (id === 'gmail' || id === 'mail') return 'mailbot';
-  return Object.prototype.hasOwnProperty.call(DEFINITIONS, id) ? id : 'general';
+  return id;
 }
 function getAgent(value) { return DEFINITIONS[canonicalAgentId(value)]; }
 function listAgents() {
