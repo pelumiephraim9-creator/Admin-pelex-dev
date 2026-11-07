@@ -28,13 +28,14 @@ All agents use the same backend service and should align with these shared compo
 - shared API and Cloudflare Worker edge layer;
 - consistent logging, error handling and deployment checks.
 
-Agent-specific instructions, integrations, tools and execution modules belong to their own implementation files. Adding an agent must not require cloning the server, model manager, scheduler or shared tools.
+Agent-specific instructions belong in auto-discovered `agents/<agent-id>.js` modules; integrations and reusable tools belong in their own shared modules. Adding an agent must not require cloning the server, model manager, scheduler or shared tools.
 
 ## Current repository structure
 
 - `server.js`: active Node.js backend entrypoint.
 - `worker.js`: Cloudflare Worker proxy.
-- `registry.js`: canonical agent registry.
+- `registry.js`: canonical agent registry and automatic discovery of `agents/*.js` modules.
+- `agents/`: agent-specific instructions and module definitions; all agents use the shared runtime.
 - `command.js`: shared command and feature registry.
 - `tools/`: automatically discovered shared tools.
 - `jobs/`: automatically discovered background jobs.
