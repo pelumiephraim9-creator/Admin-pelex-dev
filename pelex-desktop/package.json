@@ -1,0 +1,21 @@
+{
+  "name": "pelex-desktop",
+  "productName": "Pelex",
+  "version": "1.0.0",
+  "description": "Pelex desktop app (opens the Pelex website in its own window)",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --x64"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "tech.pelex.desktop",
+    "productName": "Pelex",
+    "win": { "target": ["nsis"], "icon": "icon.ico" },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true }
+  }
+}
