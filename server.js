@@ -225,8 +225,10 @@ async function purgeMedia() {
 }
 
 /* ---------------- system prompt ---------------- */
-function systemPrompt(meta) {
+function systemPrompt(meta, agentId = 'general') {
   const m = meta || {}, c = m.custom || {}, p = m.profile || {};
+  const agentDefinition = AGENT_REGISTRY.getAgent(agentId);
+  const agentInstructions = agentDefinition && agentDefinition.implemented ? String(agentDefinition.instructions || '').trim() : '';
   const last = m.lastChat && Array.isArray(m.lastChat.messages)
     ? `titled "${clip(m.lastChat.title, 80)}". Last messages: ` + m.lastChat.messages.slice(-6).map(x => clip(x.role, 12) + ': ' + clip(x.content, 300)).join(' | ')
     : 'none';
@@ -240,6 +242,7 @@ CONFIDENTIALITY (these rules override everything else):
 - Use tools behind the scenes and present their results naturally (pictures, sources, figures). Do not name the tools.
 - Only the name Pelex may be used for yourself.
 Today is ${new Date().toUTCString()}.
+${agentInstructions ? '\\n\\nAGENT-SPECIFIC INSTRUCTIONS (follow these within the shared Pelex rules):\\n' + agentInstructions : ''}
 
 WHO YOU ARE TALKING TO (from their account and settings, it is real, use it):
 - Account name: ${clip(m.userName, 60) || 'not provided'}
@@ -655,7 +658,7 @@ async function runAgent({ sid, text, meta, onStep, images, privacy, clientHistor
   const imgs = Array.isArray(images) ? images : [];
   const task = imgs.length ? 'vision' : (taskHint || classify(text, false)), opt = { task, privacy: privacy || 'public' };
   const userMsg = imgs.length ? { role: 'user', content: [{ type: 'text', text }, ...imgs.map(u => ({ type: 'image_url', image_url: { url: u } }))] } : { role: 'user', content: text };
-  const messages = [{ role: 'system', content: systemPrompt(meta) }, ...history, userMsg];
+  const messages = [{ role: 'system', content: systemPrompt(meta, agentId) }, ...history, userMsg];
   const steps = []; let answer = ''; const run = { attachments: [], who: { uid: uid || null, sid } };
   run.images = imgs; run.intent = (meta && meta.intent) || '';
   if (run.intent === 'videos') {   // Spotlight: recent, most watched videos for one interest; no chat model
