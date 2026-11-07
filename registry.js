@@ -38,7 +38,7 @@ function getAgent(value) { return DEFINITIONS[canonicalAgentId(value)]; }
 function listAgents() {
   return Object.values(DEFINITIONS).map(a => ({
     id: a.uiId, label: a.label,
-    ready: a.implemented && (a.id === 'general' || process.env[`AGENT_${a.id.toUpperCase()}_ENABLED`] === '1')
+    ready: !!a.implemented
   }));
 }
 function isToolAllowed(agentId, toolName) {
