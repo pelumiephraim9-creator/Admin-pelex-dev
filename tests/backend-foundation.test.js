@@ -91,7 +91,7 @@ test('unsupported external channels are not falsely marked delivered', async () 
     bot: 'general', instruction: 'Prepare a report',
     frequency: 'once', active: true, channel: 'whatsapp'
   });
-  assert.equal(ctx.calls.some(x => x.type === 'agent'), true);
+  assert.equal(ctx.calls.some(x => x.type === 'agent'), false);
   assert.equal(ctx.calls.some(x => x.path && x.path.endsWith('/complete_scheduled_task_v2')), false);
   const failed = ctx.calls.find(x => x.path && x.path.endsWith('/fail_scheduled_task_v2'));
   assert.ok(failed);
