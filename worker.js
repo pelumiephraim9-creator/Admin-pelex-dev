@@ -14,8 +14,15 @@
 // Render must also set MEDIA_PUBLIC_URL to this Worker's public base URL.
 // Example: https://admin-pelex-dev.pelumiephraim9.workers.dev
 
-// ---- Payment webhooks (Paystack, Flutterwave): verified, then saved to the ledger. No Origin check: providers call us directly.
-// A payment is saved only after its signature is verified. Each workspace has its own URL token.
+// ---- Payment webhooks (Paystack, Flutterwave) that save to the ledger: verified, then saved.
+// Each workspace has its own URL token: /hooks/<provider>/<token>. No Origin check: providers call us directly.
+const LEDGER_HOOK = /^\/hooks\/(paystack|flutterwave)\/[^/]+$/;
+
+// ---- Backend hooks forwarded untouched (raw body kept so signatures still verify on Render):
+//   /hooks/paystack          Paystack receipt emails (signature checked by Render)
+//   /hooks/user-created      welcome email when a person signs up (secret checked by Render)
+//   /emails/product-update   product update emails (secret checked by Render)
+const FORWARD_HOOKS = ['/hooks/paystack', '/hooks/user-created', '/emails/product-update'];
 
 const enc = new TextEncoder();
 const hex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
@@ -80,6 +87,26 @@ async function handlePaymentWebhook(request, env) {
   return new Response(res, { status: 200 });
 }
 
+// Forwards a backend hook to Render exactly as it arrived (raw body, signature headers) and adds the edge secret.
+async function forwardHook(request, env, originUrl, url) {
+  if (request.method !== 'POST') return new Response('not found', { status: 404 });
+  const raw = await request.arrayBuffer();
+  if (raw.byteLength > 1000000) return new Response('payload too large', { status: 413 });
+  const headersIn = new Headers({
+    'Content-Type': request.headers.get('Content-Type') || 'application/json',
+    'X-Pelex-Edge': env.EDGE_SECRET
+  });
+  for (const k of ['x-paystack-signature', 'x-pelex-hook']) {
+    const v = request.headers.get(k); if (v) headersIn.set(k, v);
+  }
+  try {
+    const up = await fetch(originUrl + url.pathname, { method: 'POST', headers: headersIn, body: raw });
+    return new Response(up.body, { status: up.status, headers: { 'Content-Type': up.headers.get('Content-Type') || 'application/json', 'Cache-Control': 'no-store' } });
+  } catch (e) {
+    return new Response('the backend is not answering', { status: 502 });
+  }
+}
+
 const PATHS = ['/chat', '/chat/stream', '/auth/guest', '/voice/stt'];
 const GET_PATHS = ['/commands'];
 const MAX_BODY = 6500000;
@@ -103,9 +130,16 @@ export default {
       headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...cors }
     });
 
-    if (url.pathname.startsWith('/hooks/')) {
+    // Payment ledger webhooks (with a workspace token)
+    if (LEDGER_HOOK.test(url.pathname)) {
       try { return await handlePaymentWebhook(request, env); }
       catch (e) { return new Response('webhook error', { status: 500 }); }
+    }
+
+    // Backend hooks: forwarded to Render with the edge secret
+    if (FORWARD_HOOKS.includes(url.pathname)) {
+      if (!env.ORIGIN_URL || !env.EDGE_SECRET) return new Response('the shield is not set up yet', { status: 500 });
+      return await forwardHook(request, env, String(env.ORIGIN_URL).replace(/\/+$/, ''), url);
     }
 
     if (request.method === 'OPTIONS') {
