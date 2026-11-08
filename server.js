@@ -920,6 +920,13 @@ function cors(req, res) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
 }
 function send(res, code, obj) { const b = JSON.stringify(obj); res.writeHead(code, { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(b), 'Cache-Control': 'no-store' }); res.end(b); }
+function sendNow(res, stream, output, command) {
+  if (!stream) return send(res, 200, { output, steps: [], command });
+  res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
+  res.write(`event: text\ndata: ${JSON.stringify({ output, command })}\n\n`);
+  res.write(`event: done\ndata: ${JSON.stringify({ steps: [] })}\n\n`);
+  res.end();
+}
 function readBody(req, limit) {
   return new Promise((resolve, reject) => {
     let n = 0, big = false; limit = limit || 60000; const parts = [];
