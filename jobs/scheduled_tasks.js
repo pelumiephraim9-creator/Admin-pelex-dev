@@ -3,7 +3,7 @@
    Every result is a complete report: summary, reasons, rating, pictures, next steps and a conclusion.
    Results are saved to the task and open in the side panel of the app, not under the Schedule list. */
 
-const { nextAfter } = require('../scheduler_recurrence');
+const { nextAfter } = require('./scheduler_recurrence');
 const AGENTS = require('../registry');
 
 const MAX_RESULT_CHARS = 18000;
