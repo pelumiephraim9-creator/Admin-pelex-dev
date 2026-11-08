@@ -63,7 +63,8 @@ async function deliver(ctx, row, result) {
     error.permanent = true;
     throw error;
   }
-  return { confirmed: true, result };
+  // Saving the result is not proof that a notification reached the person, so delivery stays unconfirmed (the test contract).
+  return { confirmed: false, result };
 }
 async function processTask(ctx, row) {
   const token = row.claim_token;
