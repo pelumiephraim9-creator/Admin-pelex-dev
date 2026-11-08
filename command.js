@@ -3,7 +3,7 @@
    Adds /general to the command set and keeps every other command from command.js exactly as it is.
    The server loads this file first, so it is the one that answers. */
 
-const base = require('./command.js');
+const base = require('./general command.js');
 
 const GENERAL_COMMAND = {
   name: 'general',
