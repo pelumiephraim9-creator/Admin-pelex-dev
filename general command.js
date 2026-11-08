@@ -20,6 +20,7 @@ const CHANNELS = { web: { ready: true } };
 // [name, aliases, category, description, usage, hint for the model, task lane]
 const g = (name, aliases, category, description, usage, hint, task) => ({ name, aliases, agent: 'general', category, description, usage, example: usage.replace(/<[^>]+>/g, m => ({ '<text>': 'your text here' }[m] || m.slice(1, -1))), implemented: true, hint, task: task || null, args: /^\/\S+ </.test(usage) ? 'required' : 'optional' });
 const GENERAL = [
+        g('general', ['chat', 'ask'], 'Basics', 'Ask the General Agent directly', '/general <message>', 'Answer the message as the General Agent, normally, with no special style.'),
   g('help', ['commands', 'menu'], 'Basics', 'Show every command', '/help [word]', ''),
   g('prompt', ['promptwriter'], 'Writing', 'Turn a rough idea into a strong AI prompt', '/prompt <what you want>', 'Act as a prompt engineer. Write one clear, detailed, ready-to-paste prompt for the request. Include role, goal, context, constraints and output format. Then add two short tips to improve it.'),
   g('image', ['imagine', 'draw', 'picture'], 'Create', 'Create a picture from a description', '/image <description>', 'Create the picture with the image_generate tool. Write a detailed English prompt (subject, style, colours, mood) from the input, then show the result. If the input only asks for a common reference (what an app screen or ad layout looks like), call find_images first and generate only if nothing suitable is found.'),
