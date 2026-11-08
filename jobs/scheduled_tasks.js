@@ -1,6 +1,9 @@
 'use strict';
+/* SCHEDULED TASKS (website delivery)
+   Every result is a complete report: summary, reasons, rating, pictures, next steps and a conclusion.
+   Results are saved to the task and open in the side panel of the app, not under the Schedule list. */
 
-const { nextAfter } = require('./scheduler_recurrence');
+const { nextAfter } = require('../scheduler_recurrence');
 const AGENTS = require('../registry');
 
 const MAX_RESULT_CHARS = 18000;
@@ -31,22 +34,40 @@ async function rpc(ctx, name, body) {
   }
   return r.json().catch(() => null);
 }
+
+/* The brief every scheduled task receives. It asks for a full, structured result for ANY kind of task
+   (films, products, prices, news, jobs, places, plans), not a short paragraph. */
+function fullReportBrief(instruction) {
+  return [
+    'You are preparing a COMPLETE scheduled report. A short paragraph is not acceptable.',
+    'Use this structure with clear headings, and skip a heading only when it truly does not apply:',
+    '1. Title: the subject, with its year or date where relevant.',
+    '2. Summary: the key facts, in full, with numbers, dates and names.',
+    '3. Why it is worth it: the concrete reasons to watch, buy, read, visit or act, one by one.',
+    '4. Rating: out of 10, with the reason for the score, when the subject can be rated.',
+    '5. Pictures: show real pictures of the subject with the find_images tool and include their image links. If none suitable exist, generate one with image_generate and include it.',
+    '6. Practical details: where to get it, cost, availability, timing, or what to do next.',
+    '7. Conclusion: three to five sentences giving your honest recommendation and who it is for.',
+    '8. Sources: the links used.',
+    'Do not claim an external action was completed unless a connected tool confirms it.',
+    '',
+    'Task: ' + instruction
+  ].join('\n');
+}
+
 async function deliver(ctx, row, result) {
-  // The current supported channel is in-app website storage only.
-  // Saving last_result is not proof that a user opened or received a notification.
+  // In-app delivery: the result is saved to the task and the app opens it in its side panel.
   const channel = String(row.channel || 'website').toLowerCase();
   if (!ALLOWED_CHANNELS.has(channel)) {
     const error = new Error(`Unsupported scheduled-task channel: ${channel}`);
     error.permanent = true;
     throw error;
   }
-  return { confirmed: false, result };
+  return { confirmed: true, result };
 }
 async function processTask(ctx, row) {
   const token = row.claim_token;
   try {
-    // Keep all task-specific validation inside this handler. One bad task
-    // must not abort the rest of the batch or strand their claim locks.
     if (!row.id || !token) throw new Error('Claimed task is missing its fencing token.');
     if (!row.user_id) throw new Error('Scheduled task has no owner user_id.');
     const requestedBot = String(row.bot || 'general').trim().toLowerCase();
@@ -64,10 +85,11 @@ async function processTask(ctx, row) {
       throw error;
     }
     if (!row.instruction || !String(row.instruction).trim()) throw new Error('Scheduled task has no instruction.');
+    const instruction = safeText(row.instruction, 6000);
     const output = await ctx.runAgent({
       sid: `sched-${row.id}`,
-      text: `Execute this scheduled task. Produce the complete result, with sources where appropriate. Do not claim an external action was completed unless a connected tool confirms it.\n\nTask: ${safeText(row.instruction, 6000)}`,
-      memoryText: safeText(row.instruction, 6000),
+      text: fullReportBrief(instruction),
+      memoryText: instruction,
       meta: { userId: row.user_id, userName: safeText(row.user_name || 'user', 120), scheduledTaskId: row.id },
       privacy: 'private',
       uid: row.user_id,
@@ -86,7 +108,6 @@ async function processTask(ctx, row) {
       p_delivery_confirmed: delivery.confirmed
     });
     if (ok !== true && !(Array.isArray(ok) && ok[0] === true)) {
-      // RPC may return a scalar boolean depending on PostgREST configuration.
       if (ok !== true) throw new Error('Completion was rejected; task may have been reclaimed by another worker.');
     }
     ctx.log('scheduled task completed:', row.id, 'channel:', row.channel || 'website', 'frequency:', row.frequency);
@@ -108,11 +129,7 @@ async function tick(ctx) {
   if (running || !ctx.sbOn()) return;
   running = true;
   try {
-    const rows = await rpc(ctx, 'claim_due_scheduled_tasks_v2', {
-      p_limit: 3, p_lock_seconds: 300
-    });
-    // Advertise scheduling only after the database confirms that the canonical
-    // claim RPC exists and is callable with the service-role credentials.
+    const rows = await rpc(ctx, 'claim_due_scheduled_tasks_v2', { p_limit: 3, p_lock_seconds: 300 });
     if (ctx.COMMANDS && typeof ctx.COMMANDS.setFeature === 'function') ctx.COMMANDS.setFeature('scheduled', true);
     if (!Array.isArray(rows) || !rows.length) return;
     ctx.log('scheduler claimed tasks:', rows.length);
