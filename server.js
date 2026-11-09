@@ -682,7 +682,9 @@ async function runAgent({ sid, text, meta, onStep, images, privacy, clientHistor
   const userMsg = imgs.length ? { role: 'user', content: [{ type: 'text', text }, ...imgs.map(u => ({ type: 'image_url', image_url: { url: u } }))] } : { role: 'user', content: text };
   const messages = [{ role: 'system', content: systemPrompt(meta, agentId) }, ...history, userMsg];
   const steps = []; let answer = ''; const run = { attachments: [], who: { uid: uid || null, sid } };
-  // Cache identical tool calls within this one user turn. This prevents a model\n  // from creating and storing the same PDF twice if it repeats a tool call.\n  const toolResultCache = new Map();
+  // Cache identical tool calls within this one user turn. This prevents a model
+  // from creating and storing the same PDF twice if it repeats a tool call.
+  const toolResultCache = new Map();
   run.images = imgs; run.intent = (meta && meta.intent) || '';
   if (run.intent === 'videos') {   // Spotlight: recent, most watched videos for one interest; no chat model
     const outV = await runTool('find_videos', { interest: (meta && meta.interest) || text, pageToken: (meta && meta.pageToken) || '' }, run);
