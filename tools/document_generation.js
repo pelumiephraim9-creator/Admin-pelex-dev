@@ -1,9 +1,10 @@
 'use strict';
 
 function pdfEscape(value) {
-  return String(value == null ? '' : value)
-    .replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)')
-    .replace(/[^\x20-\x7E]/g, '?');
+  const cp1252 = { '€': '\\x80', '‚': '\\x82', 'ƒ': '\\x83', '„': '\\x84', '…': '\\x85', '†': '\\x86', '‡': '\\x87', 'ˆ': '\\x88', '‰': '\\x89', 'Š': '\\x8A', '‹': '\\x8B', 'Œ': '\\x8C', 'Ž': '\\x8E', '‘': '\\x91', '’': '\\x92', '“': '\\x93', '”': '\\x94', '•': '\\x95', '–': '\\x96', '—': '\\x97', '™': '\\x99', 'š': '\\x9A', '›': '\\x9B', 'œ': '\\x9C', 'ž': '\\x9E', 'Ÿ': '\\x9F' };
+  let s = String(value == null ? '' : value).replace(/[\\u2018\\u2019\\u201C\\u201D\\u2013\\u2014\\u2022\\u2026]/g, ch => cp1252[ch] || '?');
+  s = s.replace(/\\\\/g, '\\\\\\\\').replace(/\\(/g, '\\\\(').replace(/\\)/g, '\\\\)');
+  return Array.from(s, ch => ch.charCodeAt(0) > 255 ? '?' : ch).join('');
 }
 function wrapLine(line, max = 88) {
   const words = String(line).split(/\s+/);
@@ -19,14 +20,33 @@ function wrapLine(line, max = 88) {
   if (current) out.push(current);
   return out.length ? out : [''];
 }
+function cleanMarkdownLine(raw) {
+  let line = String(raw || '').replace(/\\t/g, '    ').trimEnd();
+  // Keep heading text but remove Markdown decoration from the exported document.
+  line = line.replace(/^\\s{0,3}#{1,6}\\s*/, '');
+  line = line.replace(/^\\s*[-*+]\\s+/, '• ');
+  line = line.replace(/^\\s*\\d+[.)]\\s+/, '• ');
+  // Convert common malformed label patterns such as **Caption:** or Caption:**.
+  line = line.replace(/^\\s*\\*{1,3}([A-Za-z][A-Za-z /&-]{0,28}):\\*{1,3}\\s*/, '$1: ');
+  line = line.replace(/\\*{1,3}([^*]+)\\*{1,3}/g, '$1');
+  line = line.replace(/\\*+/g, '');
+  line = line.replace(/^\\s*#+\\s*/, '');
+  return line;
+}
 function buildPdf(title, content) {
   const lines = [];
-  if (title) {
-    lines.push(...wrapLine(title, 78), '');
-  }
-  for (const raw of String(content).replace(/\r/g, '').split('\n')) {
-    if (!raw.trim()) lines.push('');
-    else lines.push(...wrapLine(raw, 88));
+  if (title) lines.push(...wrapLine(title, 78), '');
+  for (const raw of String(content).replace(/\\r/g, '').split('\\n')) {
+    const line = cleanMarkdownLine(raw);
+    if (!line.trim()) lines.push('');
+    else {
+      const bullet = line.startsWith('• ');
+      const wrapped = wrapLine(line, bullet ? 84 : 88);
+      if (bullet && wrapped.length > 1) {
+        lines.push(wrapped[0]);
+        for (let n = 1; n < wrapped.length; n++) lines.push('  ' + wrapped[n]);
+      } else lines.push(...wrapped);
+    }
   }
   const pages = [];
   for (let i = 0; i < lines.length; i += 48) pages.push(lines.slice(i, i + 48));
@@ -42,7 +62,7 @@ function buildPdf(title, content) {
     for (const line of pageLines) stream.push('(' + pdfEscape(line) + ') Tj', 'T*');
     stream.push('ET');
     const data = stream.join('\n');
-    const streamId = add('<< /Length ' + Buffer.byteLength(data, 'ascii') + ' >>\nstream\n' + data + '\nendstream');
+    const streamId = add('<< /Length ' + Buffer.byteLength(data, 'latin1') + ' >>\nstream\n' + data + '\nendstream');
     const pageId = add('<< /Type /Page /Parent ' + pagesId + ' 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 ' + fontId + ' 0 R >> >> /Contents ' + streamId + ' 0 R >>');
     pageIds.push(pageId);
   }
@@ -51,14 +71,14 @@ function buildPdf(title, content) {
   let pdf = '%PDF-1.4\n%PelexPDF\n';
   const offsets = [0];
   for (let i = 0; i < objects.length; i++) {
-    offsets.push(Buffer.byteLength(pdf, 'ascii'));
+    offsets.push(Buffer.byteLength(pdf, 'latin1'));
     pdf += (i + 1) + ' 0 obj\n' + objects[i] + '\nendobj\n';
   }
-  const xref = Buffer.byteLength(pdf, 'ascii');
+  const xref = Buffer.byteLength(pdf, 'latin1');
   pdf += 'xref\n0 ' + (objects.length + 1) + '\n0000000000 65535 f \n';
   for (let i = 1; i < offsets.length; i++) pdf += String(offsets[i]).padStart(10, '0') + ' 00000 n \n';
   pdf += 'trailer\n<< /Size ' + (objects.length + 1) + ' /Root ' + catalogId + ' 0 R >>\nstartxref\n' + xref + '\n%%EOF';
-  return Buffer.from(pdf, 'ascii');
+  return Buffer.from(pdf, 'latin1');
 }
 
 module.exports = {
