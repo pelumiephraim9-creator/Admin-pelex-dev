@@ -7,7 +7,7 @@ function safeHttpUrl(value) {
     return u.protocol === 'https:' || u.protocol === 'http:' ? u.href : '';
   } catch (e) { return ''; }
 }
-const synthetic = /\b(ai[- ]?generated|illustration|illustrated|mock[- ]?up|3d render|cgi|concept art|digital art|vector art|cartoon|painting|drawing|wallpaper|infographic|simulation|weather forecast|forecast card|weather report|poster|flyer|banner|brochure|advertisement|chart|diagram|collage|template)\b/i;
+const synthetic = /\b(ai[- ]?generated|illustration|illustrated|mock[- ]?up|3d render|cgi|concept art|digital art|vector art|cartoon|painting|drawing|wallpaper|infographic|simulation|weather forecast|forecast card|weather report|poster|flyer|banner|brochure|advertisement|chart|diagram|collage|template|watermark|shutterstock|istock|i-stock|getty images|alamy|adobe stock|dreamstime|depositphotos|123rf|pond5)\b/i;
 const unrelatedRegion = /\b(benue|lagos|abuja|kano|kaduna|rivers|enugu|imo|osun|oyo|edo|delta|anambra|plateau|niger|kwara|sokoto|katsina|borno|yobe|adamawa|taraba|bauchi|gombe|jigawa|kebbi|zamfara|cross river|akwa ibom|bayelsa|ekiti|ogun|nasarawa|ebonyi)\b/i;
 
 module.exports = {
@@ -38,7 +38,7 @@ module.exports = {
       response = await fetch('https://google.serper.dev/images', {
         method: 'POST', signal: t.signal,
         headers: { 'X-API-KEY': ctx.CFG.serper, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ q: query + suffix + ' -poster -flyer -infographic -weather chart -forecast graphic', num: 8, gl: 'ng', hl: 'en' })
+        body: JSON.stringify({ q: query + suffix + ' -poster -flyer -infographic -weather chart -forecast graphic', num: 12, gl: 'ng', hl: 'en' })
       });
     } finally { t.done(); }
     if (!response.ok) throw new Error('Image search service returned HTTP ' + response.status + '.');
@@ -58,11 +58,10 @@ module.exports = {
       const pageUrl = safeHttpUrl(item.link);
       const title = clip(item.title || query, 100) || query;
       const source = clip(item.source || 'Image source', 80);
-      return '![Real photograph: ' + title.replace(/[\[\]]/g, '') + '](' + imageUrl + ')' +
-        (pageUrl ? '\nSource: [' + source.replace(/[\[\]]/g, '') + '](' + pageUrl + ')' : '\nSource: ' + source);
+      return '![Real photograph: ' + title.replace(/[\[\]]/g, '') + '](' + imageUrl + ')';
     });
     return {
-      text: 'Found ' + rows.length + ' candidate existing images. These are search results, not guaranteed live camera feeds. Identify them as photographs and show their source; do not describe them as live satellite imagery.',
+      text: 'Found ' + rows.length + ' candidate existing images. These are search results, not guaranteed live camera feeds. Identify them as photographs; do not describe them as live satellite imagery. Do not add source links to scheduled reports.',
       markdown: blocks.join('\n\n')
     };
   }
