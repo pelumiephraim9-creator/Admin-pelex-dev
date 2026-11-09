@@ -31,9 +31,13 @@ function context({ output = 'scheduled result', rpcResult = true } = {}) {
     calls,
     log() {},
     async runAgent(args) { calls.push({ type: 'agent', args }); return { output }; },
-    async sbFetch(path, init) {
-      calls.push({ type: 'rpc', path, body: JSON.parse(init.body) });
-      return { ok: true, async json() { return rpcResult; } };
+    async sbFetch(path, init = {}) {
+      calls.push({ type: 'rpc', path, body: init.body ? JSON.parse(init.body) : null, method: init.method || 'GET' });
+      let payload = rpcResult;
+      if (path.startsWith('/rest/v1/chats?')) payload = [];
+      else if (path === '/rest/v1/chats' && init.method === 'POST') payload = [{ id: 'scheduled-chat-1' }];
+      else if (path.startsWith('/rest/v1/messages?')) payload = [];
+      return { ok: true, async json() { return payload; }, async text() { return ''; } };
     }
   };
 }
@@ -52,7 +56,9 @@ test('General scheduled task runs through the shared agent interface and saves a
   assert.equal(agent.args.uid, 'user-1');
   assert.ok(complete);
   assert.equal(complete.body.p_delivery_confirmed, false);
-  assert.equal(complete.body.p_result, 'scheduled result');
+  assert.match(complete.body.p_result, /scheduled result/);
+  assert.match(complete.body.p_result, /<!--pelex-scheduled-run:task-1:/);
+  assert.match(complete.body.p_result, /<!--pelex-scheduled-chat:scheduled-chat-1-->/);
   assert.equal(complete.body.p_next_run, null);
 });
 
