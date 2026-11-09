@@ -139,7 +139,7 @@ async function repairDeliveredScheduledChats(ctx) {
   for (const row of Array.isArray(rows) ? rows : []) {
     const match = String(row.last_result || '').match(/<!--pelex-scheduled-chat:([0-9a-f-]{20,})-->/i);
     if (!match || !row.user_id || String(row.channel || 'website').toLowerCase() !== 'website') continue;
-    const result = String(row.last_result).replace(/\\n?\\n?<!--pelex-scheduled-chat:[0-9a-f-]{20,}-->/ig, '').trim();
+    const result = String(row.last_result).replace(/\n?\n?<!--pelex-scheduled-chat:[0-9a-f-]{20,}-->/ig, '').trim();
     if (!result) continue;
     await ensureResultChat(ctx, row, result, match[1]);
     repaired++;
@@ -185,11 +185,11 @@ async function processTask(ctx, row) {
     // Persist the generated result before delivery. If delivery or completion fails,
     // the next claim reuses this exact result instead of asking the model to run again.
     const pendingPrefix = '<!--pelex-scheduled-pending:';
-    const legacyPendingPrefix = '<!--pelex-scheduled-pending-->\\n';
+    const legacyPendingPrefix = '<!--pelex-scheduled-pending-->\n';
     let result = '';
     let runMarkerId = '';
     const prior = String(row.last_result || '');
-    const pendingMatch = prior.match(/^<!--pelex-scheduled-pending:([a-z0-9-]+)-->\\n/i);
+    const pendingMatch = prior.match(/^<!--pelex-scheduled-pending:([a-z0-9-]+)-->\n/i);
     if (pendingMatch) {
       runMarkerId = pendingMatch[1];
       result = safeText(prior.slice(pendingMatch[0].length), MAX_RESULT_CHARS);
@@ -213,7 +213,7 @@ async function processTask(ctx, row) {
       runMarkerId = require('crypto').randomUUID();
       const staged = await ctx.sbFetch(
         `/rest/v1/scheduled_tasks?id=eq.${encodeURIComponent(row.id)}&status=eq.running&claim_token=eq.${encodeURIComponent(token)}`,
-        { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ last_result: pendingPrefix + runMarkerId + '-->\\n' + result }) }
+        { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ last_result: pendingPrefix + runMarkerId + '-->\n' + result }) }
       );
       if (!staged.ok) throw new Error(`Could not checkpoint scheduled result (${staged.status}): ${safeText(await staged.text().catch(() => ''), 300)}`);
     }
@@ -221,7 +221,7 @@ async function processTask(ctx, row) {
     // This run ID is saved alongside the result, so retries retain the same identity.
     // A later recurring occurrence gets a fresh ID.
     const runMarker = '<!--pelex-scheduled-run:' + safeText(row.id, 80) + ':' + runMarkerId + '-->';
-    const resultForDelivery = result + '\\n\\n' + runMarker;
+    const resultForDelivery = result + '\n\n' + runMarker;
     const delivery = await deliver(ctx, row, resultForDelivery);
     const recurring = row.active !== false && row.frequency && String(row.frequency).trim().toLowerCase() !== 'once';
     const nextRun = recurring ? nextAfter(row.next_run || new Date().toISOString(), row.frequency) : null;
