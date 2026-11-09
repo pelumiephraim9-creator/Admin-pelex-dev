@@ -67,17 +67,20 @@ function scheduledChatTitle(row) {
   return safeText(`Scheduled: ${subject.slice(0, 78)} · ${stamp}`, 120);
 }
 
-async function ensureResultChat(ctx, row, result) {
+async function ensureResultChat(ctx, row, result, knownChatId = null) {
   const title = scheduledChatTitle(row);
   const userId = encodeURIComponent(String(row.user_id));
   const titleQuery = encodeURIComponent(title);
-  const find = await ctx.sbFetch(
-    `/rest/v1/chats?select=id&user_id=eq.${userId}&title=eq.${titleQuery}&order=updated_at.desc&limit=1`
-  );
-  if (!find.ok) throw new Error(`Could not check the scheduled-result chat (${find.status}): ${safeText(await find.text().catch(() => ''), 300)}`);
-  const found = await find.json().catch(() => []);
-  let chatId = Array.isArray(found) && found[0] ? found[0].id : null;
+  let chatId = knownChatId || null;
   let created = false;
+  if (!chatId) {
+    const find = await ctx.sbFetch(
+      `/rest/v1/chats?select=id&user_id=eq.${userId}&title=eq.${titleQuery}&order=updated_at.desc&limit=1`
+    );
+    if (!find.ok) throw new Error(`Could not check the scheduled-result chat (${find.status}): ${safeText(await find.text().catch(() => ''), 300)}`);
+    const found = await find.json().catch(() => []);
+    chatId = Array.isArray(found) && found[0] ? found[0].id : null;
+  }
 
   if (!chatId) {
     const create = await ctx.sbFetch('/rest/v1/chats', {
@@ -101,10 +104,10 @@ async function ensureResultChat(ctx, row, result) {
   if (!latestAssistant || latestAssistant.content !== result) {
     const payload = created || !previous.length
       ? [
-          { chat_id: chatId, role: 'user', content: 'Scheduled task: ' + safeText(row.instruction, 6000) },
-          { chat_id: chatId, role: 'assistant', content: result }
+          { chat_id: chatId, user_id: row.user_id, role: 'user', content: 'Scheduled task: ' + safeText(row.instruction, 6000) },
+          { chat_id: chatId, user_id: row.user_id, role: 'assistant', content: result }
         ]
-      : [{ chat_id: chatId, role: 'assistant', content: result }];
+      : [{ chat_id: chatId, user_id: row.user_id, role: 'assistant', content: result }];
     const save = await ctx.sbFetch('/rest/v1/messages', {
       method: 'POST',
       headers: { Prefer: 'return=minimal' },
@@ -120,6 +123,26 @@ async function ensureResultChat(ctx, row, result) {
   });
   if (!touch.ok) throw new Error(`Could not update the scheduled chat timestamp (${touch.status}).`);
   return { chatId, title };
+}
+
+async function repairDeliveredScheduledChats(ctx) {
+  // Repair older completed website tasks whose chat row exists but whose
+  // messages failed to save (older versions omitted messages.user_id).
+  const r = await ctx.sbFetch(
+    '/rest/v1/scheduled_tasks?select=id,user_id,instruction,last_result,next_run,frequency,channel,delivered_at&delivered_at=not.is.null&last_result=not.is.null&order=delivered_at.desc&limit=40'
+  );
+  if (!r.ok) throw new Error(`Could not scan delivered scheduled tasks for chat repair (${r.status}).`);
+  const rows = await r.json().catch(() => []);
+  let repaired = 0;
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const match = String(row.last_result || '').match(/<!--pelex-scheduled-chat:([0-9a-f-]{20,})-->/i);
+    if (!match || !row.user_id || String(row.channel || 'website').toLowerCase() !== 'website') continue;
+    const result = String(row.last_result).replace(/\\n?\\n?<!--pelex-scheduled-chat:[0-9a-f-]{20,}-->/ig, '').trim();
+    if (!result) continue;
+    await ensureResultChat(ctx, row, result, match[1]);
+    repaired++;
+  }
+  if (repaired) ctx.log('scheduled chat recovery checked:', repaired, 'delivered results');
 }
 
 async function deliver(ctx, row, result) {
@@ -200,6 +223,10 @@ async function tick(ctx) {
   if (running || !ctx.sbOn()) return;
   running = true;
   try {
+    if (!ctx._scheduledChatRepairDone) {
+      try { await repairDeliveredScheduledChats(ctx); ctx._scheduledChatRepairDone = true; }
+      catch (repairErr) { ctx.log('scheduled chat recovery deferred:', repairErr.message); }
+    }
     const rows = await rpc(ctx, 'claim_due_scheduled_tasks_v2', { p_limit: 3, p_lock_seconds: 300 });
     if (ctx.COMMANDS && typeof ctx.COMMANDS.setFeature === 'function') ctx.COMMANDS.setFeature('scheduled', true);
     if (!Array.isArray(rows) || !rows.length) return;
