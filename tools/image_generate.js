@@ -100,6 +100,48 @@ async function viaGemini(p, refs, ctx) {
   return { bytes, mime, via: 'Gemini' };
 }
 
+// Cloudflare Workers AI fallback editor using FLUX.2 [klein] 4B.
+// Reference images are sent as multipart fields; the frontend downsizes edit inputs to 512px.
+async function viaCloudflareEdit(prompt, refs, ctx) {
+  const token = E.CF_API_TOKEN || '', account = E.CF_ACCOUNT_ID || '';
+  if (!token || !account) throw new Error('Cloudflare editing is not configured (CF_ACCOUNT_ID / CF_API_TOKEN).');
+  const form = new FormData();
+  form.append('prompt', clip(prompt, 1200));
+  form.append('width', '1024');
+  form.append('height', '1024');
+  refs.slice(0, 4).forEach((ref, index) => {
+    const bytes = Buffer.from(ref.b64, 'base64');
+    const mime = ['image/png', 'image/jpeg', 'image/webp'].includes(ref.mime) ? ref.mime : 'image/jpeg';
+    const ext = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg';
+    form.append('input_image_' + index, new Blob([bytes], { type: mime }), 'reference-' + index + '.' + ext);
+  });
+  const model = E.CF_IMAGE_EDIT_MODEL || '@cf/black-forest-labs/flux-2-klein-4b';
+  const t = ctx.withTimeout(90000); let r;
+  try {
+    r = await fetch(`${CF()}/accounts/${account}/ai/run/${model}`, {
+      method: 'POST', signal: t.signal,
+      headers: { Authorization: 'Bearer ' + token },
+      body: form
+    });
+  } finally { t.done(); }
+  const type = (r.headers.get('content-type') || '').toLowerCase();
+  if (!r.ok) throw new Error('Cloudflare FLUX.2 edit HTTP ' + r.status + ': ' + clip(await r.text().catch(() => ''), 260));
+  if (type.includes('application/json')) {
+    const j = await r.json().catch(() => null);
+    const image = j && j.result && j.result.image;
+    if (image) {
+      const bytes = Buffer.from(image, 'base64'), mime = MAGIC(bytes);
+      if (!mime) throw new Error('Cloudflare FLUX.2 returned invalid image data.');
+      return { bytes, mime, via: 'Cloudflare FLUX.2 Klein 4B' };
+    }
+    throw new Error('Cloudflare FLUX.2 returned no image bytes.');
+  }
+  if (!type.startsWith('image/')) throw new Error('Cloudflare FLUX.2 returned ' + type + ' instead of a picture.');
+  const bytes = Buffer.from(await r.arrayBuffer()), mime = MAGIC(bytes);
+  if (!mime) throw new Error('Cloudflare FLUX.2 returned invalid image data.');
+  return { bytes, mime, via: 'Cloudflare FLUX.2 Klein 4B' };
+}
+
 // Pictures sent with the message arrive as data URLs.
 const dataUrlParts = u => { const m = /^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(String(u || '')); return m ? { mime: m[1], b64: m[2] } : null; };
 const refsOf = list => (Array.isArray(list) ? list : []).map(dataUrlParts).filter(Boolean);
@@ -142,7 +184,15 @@ module.exports = {
     if (args.mode === 'edit') {
       const attached = refsOf(ctx.images);
       if (!attached.length) throw new Error('Attach the picture you want changed, then ask again.');
-      const img = await viaGemini('Edit the attached image. Apply exactly this change and keep everything else the same (people, faces, objects, composition, colours unless the change says otherwise): ' + p, attached, ctx);
+      const editPrompt = 'Edit the attached image. Apply exactly this change and keep everything else the same (people, faces, objects, composition, colours unless the change says otherwise): ' + p;
+      let img = null; const errors = [];
+      try { img = await viaGemini(editPrompt, attached, ctx); ctx.log('image edit: Gemini succeeded'); }
+      catch (e) { errors.push('Gemini: ' + e.message); ctx.log('image edit: Gemini failed:', e.message); }
+      if (!img) {
+        try { img = await viaCloudflareEdit(editPrompt, attached, ctx); ctx.log('image edit: Cloudflare FLUX.2 succeeded'); }
+        catch (e) { errors.push('Cloudflare FLUX.2: ' + e.message); ctx.log('image edit: Cloudflare FLUX.2 failed:', e.message); }
+      }
+      if (!img) throw new Error('Image editing is unavailable. ' + errors.join(' | '));
       return save({ ...img, caption }, ctx, 'the rest of the picture was kept as it was.');
     }
 
