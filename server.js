@@ -681,7 +681,7 @@ async function runAgent({ sid, text, meta, onStep, images, privacy, clientHistor
   const task = imgs.length ? 'vision' : (taskHint || classify(text, false)), opt = { task, privacy: privacy || 'public' };
   const userMsg = imgs.length ? { role: 'user', content: [{ type: 'text', text }, ...imgs.map(u => ({ type: 'image_url', image_url: { url: u } }))] } : { role: 'user', content: text };
   const messages = [{ role: 'system', content: systemPrompt(meta, agentId) }, ...history, userMsg];
-  const steps = []; let answer = ''; const run = { attachments: [], who: { uid: uid || null, sid } };
+  const steps = []; let answer = ''; const run = { attachments: [], who: { uid: uid || null, sid } };\n  // Cache identical tool calls within this one user turn. This prevents a model\n  // from creating and storing the same PDF twice if it repeats a tool call.\n  const toolResultCache = new Map();
   run.images = imgs; run.intent = (meta && meta.intent) || '';
   if (run.intent === 'videos') {   // Spotlight: recent, most watched videos for one interest; no chat model
     const outV = await runTool('find_videos', { interest: (meta && meta.interest) || text, pageToken: (meta && meta.pageToken) || '' }, run);
@@ -717,12 +717,27 @@ async function runAgent({ sid, text, meta, onStep, images, privacy, clientHistor
       }
       let label = 'Working'; try { const f = STEP_LABEL[c.function.name] || (EXT.get(c.function.name) && EXT.get(c.function.name).label); if (typeof f === 'function') label = clip(f(args), 100); } catch (e) {}
       steps.push(label); if (onStep) onStep(label);
-      const result = await runTool(c.function.name, args, run);
+      const cacheKey = c.function.name + ':' + crypto.createHash('sha256').update(JSON.stringify(args)).digest('hex');
+      let result;
+      if (toolResultCache.has(cacheKey)) {
+        result = toolResultCache.get(cacheKey);
+        log('duplicate tool call reused within request:', c.function.name);
+      } else {
+        result = await runTool(c.function.name, args, run);
+        toolResultCache.set(cacheKey, result);
+      }
       messages.push({ role: 'tool', tool_call_id: c.id, content: clip(result, 12000) });
     }
   }
   if (!answer) answer = 'I could not finish that one. Please try again in a moment.';
-  for (const md of run.attachments) if (!answer.includes(md)) answer += '\n\n' + md;   // pictures and download links always reach the chat
+  // Never let a model echo signed media URLs into ordinary chat text. The
+  // attachment metadata below remains available to the frontend file card.
+  answer = answer
+    .replace(/\[(?:Download|Preview) [^\]]+\]\(https?:\/\/[^\s)]+\/media\/download\?[^\s)]+\)/gi, '')
+    .replace(/https?:\/\/[^\s<>)]+\/media\/download\?[^\s<>)]+/gi, '')
+    .replace(/\n[ \t]*\n[ \t]*\n+/g, '\n\n').trim();
+  const uniqueAttachments = [...new Set(run.attachments)];
+  for (const md of uniqueAttachments) if (!answer.includes(md)) answer += '\n\n' + md;   // file actions are consumed by the frontend card
   await saveTurn({ sid, userId: uid, agentId, userText: imgs.length ? savedText + ` [${imgs.length} image${imgs.length > 1 ? 's' : ''} attached]` : savedText, answer });
   return { output: answer, steps };
 }
