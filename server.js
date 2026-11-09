@@ -602,9 +602,9 @@ async function callOne(p, messages, withTools) {
   try {
     if (p.kind === 'anthropic') {
       const a = toAnthropic(messages, withTools);
-      r = await fetch(p.url, { method: 'POST', signal: t.signal, headers: { 'x-api-key': p.key, 'anthropic-version': ENV.ANTHROPIC_VERSION || '2023-06-01', 'Content-Type': 'application/json', ...(CFG.claudeWorkspaceId ? { 'anthropic-workspace-id': CFG.claudeWorkspaceId } : {}) }, body: JSON.stringify({ model: p.model, max_tokens: 2500, system: a.system, messages: a.messages, ...(a.tools ? { tools: a.tools } : {}) }) });
+      r = await fetch(p.url, { method: 'POST', signal: t.signal, headers: { 'x-api-key': p.key, 'anthropic-version': ENV.ANTHROPIC_VERSION || '2023-06-01', 'Content-Type': 'application/json', ...(CFG.claudeWorkspaceId ? { 'anthropic-workspace-id': CFG.claudeWorkspaceId } : {}) }, body: JSON.stringify({ model: p.model, max_tokens: 3500, system: a.system, messages: a.messages, ...(a.tools ? { tools: a.tools } : {}) }) });
     } else {
-      const body = { model: p.model, messages, temperature: 0.6, max_tokens: p.id === 'groq' ? 512 : 1800 };
+      const body = { model: p.model, messages, temperature: 0.6, max_tokens: p.id === 'groq' ? 2500 : 3000 };
       if (withTools) { body.tools = tools(); body.tool_choice = 'auto'; }
       r = await fetch(p.url, { method: 'POST', signal: t.signal, headers: { Authorization: 'Bearer ' + p.key, 'Content-Type': 'application/json', ...p.extra }, body: JSON.stringify(body) });
     }
@@ -684,7 +684,15 @@ async function runAgent({ sid, text, meta, onStep, images, privacy, clientHistor
     if (!calls.length) { answer = (typeof msg.content === 'string' ? msg.content : '').trim(); break; }
     messages.push({ role: 'assistant', content: typeof msg.content === 'string' ? msg.content : '', tool_calls: calls });
     for (const c of calls.slice(0, 4)) {
-      let args = {}; try { args = JSON.parse(c.function.arguments || '{}'); } catch (e) {}
+      let args = {};
+      try {
+        args = JSON.parse(c.function.arguments || '{}');
+        if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('Tool arguments must be a JSON object.');
+      } catch (e) {
+        log('invalid tool arguments from model:', c.function.name, clip(e.message, 180));
+        messages.push({ role: 'tool', tool_call_id: c.id, content: 'The tool arguments were not valid JSON. Retry the same action with a valid JSON object and include all required fields. Do not abandon the user request.' });
+        continue;
+      }
       let label = 'Working'; try { const f = STEP_LABEL[c.function.name] || (EXT.get(c.function.name) && EXT.get(c.function.name).label); if (typeof f === 'function') label = clip(f(args), 100); } catch (e) {}
       steps.push(label); if (onStep) onStep(label);
       const result = await runTool(c.function.name, args, run);
