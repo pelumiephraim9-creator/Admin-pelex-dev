@@ -55,16 +55,84 @@ function fullReportBrief(instruction) {
   ].join('\n');
 }
 
+function scheduledChatTitle(row) {
+  const subject = safeText(row.instruction, 180)
+    .split(/\nSource website:/i)[0]
+    .replace(/\s+/g, ' ')
+    .trim() || 'Scheduled report';
+  const runAt = row.next_run && !Number.isNaN(Date.parse(row.next_run))
+    ? new Date(row.next_run)
+    : new Date();
+  const stamp = runAt.toISOString().slice(0, 16).replace('T', ' ');
+  return safeText(`Scheduled: ${subject.slice(0, 78)} · ${stamp}`, 120);
+}
+
+async function ensureResultChat(ctx, row, result) {
+  const title = scheduledChatTitle(row);
+  const userId = encodeURIComponent(String(row.user_id));
+  const titleQuery = encodeURIComponent(title);
+  const find = await ctx.sbFetch(
+    `/rest/v1/chats?select=id&user_id=eq.${userId}&title=eq.${titleQuery}&order=updated_at.desc&limit=1`
+  );
+  if (!find.ok) throw new Error(`Could not check the scheduled-result chat (${find.status}): ${safeText(await find.text().catch(() => ''), 300)}`);
+  const found = await find.json().catch(() => []);
+  let chatId = Array.isArray(found) && found[0] ? found[0].id : null;
+  let created = false;
+
+  if (!chatId) {
+    const create = await ctx.sbFetch('/rest/v1/chats', {
+      method: 'POST',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({ user_id: row.user_id, title, project_id: null })
+    });
+    if (!create.ok) throw new Error(`Could not create the scheduled-result chat (${create.status}): ${safeText(await create.text().catch(() => ''), 300)}`);
+    const rows = await create.json().catch(() => []);
+    chatId = Array.isArray(rows) && rows[0] ? rows[0].id : (rows && rows.id);
+    if (!chatId) throw new Error('The scheduled-result chat was created without returning its ID.');
+    created = true;
+  }
+
+  const messagesUrl = `/rest/v1/messages?select=role,content&chat_id=eq.${encodeURIComponent(chatId)}&order=created_at.desc&limit=2`;
+  const readMessages = await ctx.sbFetch(messagesUrl);
+  if (!readMessages.ok) throw new Error(`Could not check scheduled-result messages (${readMessages.status}).`);
+  const previous = await readMessages.json().catch(() => []);
+  const latestAssistant = Array.isArray(previous) ? previous.find(m => m.role === 'assistant') : null;
+
+  if (!latestAssistant || latestAssistant.content !== result) {
+    const payload = created || !previous.length
+      ? [
+          { chat_id: chatId, role: 'user', content: 'Scheduled task: ' + safeText(row.instruction, 6000) },
+          { chat_id: chatId, role: 'assistant', content: result }
+        ]
+      : [{ chat_id: chatId, role: 'assistant', content: result }];
+    const save = await ctx.sbFetch('/rest/v1/messages', {
+      method: 'POST',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify(payload)
+    });
+    if (!save.ok) throw new Error(`Could not save the scheduled result to its chat (${save.status}): ${safeText(await save.text().catch(() => ''), 300)}`);
+  }
+
+  const touch = await ctx.sbFetch(`/rest/v1/chats?id=eq.${encodeURIComponent(chatId)}`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({ updated_at: new Date().toISOString() })
+  });
+  if (!touch.ok) throw new Error(`Could not update the scheduled chat timestamp (${touch.status}).`);
+  return { chatId, title };
+}
+
 async function deliver(ctx, row, result) {
-  // In-app delivery: the result is saved to the task and the app opens it in its side panel.
+  // Website delivery means the complete result has been written to a normal chat
+  // owned by the scheduled-task user. Only then may the task be marked delivered.
   const channel = String(row.channel || 'website').toLowerCase();
   if (!ALLOWED_CHANNELS.has(channel)) {
     const error = new Error(`Unsupported scheduled-task channel: ${channel}`);
     error.permanent = true;
     throw error;
   }
-  // Saving the result is not proof that a notification reached the person, so delivery stays unconfirmed (the test contract).
-  return { confirmed: false, result };
+  const chat = await ensureResultChat(ctx, row, result);
+  return { confirmed: true, result, chatId: chat.chatId, chatTitle: chat.title };
 }
 async function processTask(ctx, row) {
   const token = row.claim_token;
@@ -111,7 +179,7 @@ async function processTask(ctx, row) {
     if (ok !== true && !(Array.isArray(ok) && ok[0] === true)) {
       if (ok !== true) throw new Error('Completion was rejected; task may have been reclaimed by another worker.');
     }
-    ctx.log('scheduled task completed:', row.id, 'channel:', row.channel || 'website', 'frequency:', row.frequency);
+    ctx.log('scheduled task completed:', row.id, 'chat:', delivery.chatId, 'channel:', row.channel || 'website', 'frequency:', row.frequency);
   } catch (err) {
     ctx.log('scheduled task failed:', row.id, err.message);
     try {
