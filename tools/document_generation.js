@@ -104,7 +104,7 @@ module.exports = {
     const fileName = filename.toLowerCase().endsWith('.pdf') ? filename : filename + '.pdf';
     return {
       text: 'The PDF has been generated and saved successfully.',
-      markdown: '[Download ' + fileName + '](' + saved.downloadUrl + ')\\n[Preview ' + fileName + '](' + saved.url + ')'
+      markdown: '[Download ' + fileName + '](' + saved.downloadUrl + ')\n[Preview ' + fileName + '](' + saved.url + ')'
     };
   }
 };
