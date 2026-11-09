@@ -91,13 +91,19 @@ async function ensureResultChat(ctx, row, result, knownChatId = null) {
     created = true;
   }
 
-  const messagesUrl = `/rest/v1/messages?select=role,content&chat_id=eq.${encodeURIComponent(chatId)}&order=created_at.desc&limit=2`;
+  // A stable run marker makes delivery idempotent across retries and workers.
+  const runMarkerMatch = String(result).match(/<!--pelex-scheduled-run:[^>]+-->/);
+  const runMarker = runMarkerMatch ? runMarkerMatch[0] : '';
+  const messagesUrl = `/rest/v1/messages?select=role,content&chat_id=eq.${encodeURIComponent(chatId)}&order=created_at.desc&limit=30`;
   const readMessages = await ctx.sbFetch(messagesUrl);
   if (!readMessages.ok) throw new Error(`Could not check scheduled-result messages (${readMessages.status}).`);
   const previous = await readMessages.json().catch(() => []);
-  const latestAssistant = Array.isArray(previous) ? previous.find(m => m.role === 'assistant') : null;
+  const alreadyDelivered = Array.isArray(previous) && (
+    (runMarker && previous.some(m => m.role === 'assistant' && String(m.content || '').includes(runMarker))) ||
+    previous.some(m => m.role === 'assistant' && m.content === result)
+  );
 
-  if (!latestAssistant || latestAssistant.content !== result) {
+  if (!alreadyDelivered) {
     const payload = created || !previous.length
       ? [
           { chat_id: chatId, user_id: row.user_id, role: 'user', content: 'Scheduled task: ' + safeText(row.instruction, 6000) },
@@ -203,7 +209,12 @@ async function processTask(ctx, row) {
       if (!staged.ok) throw new Error(`Could not checkpoint scheduled result (${staged.status}): ${safeText(await staged.text().catch(() => ''), 300)}`);
     }
     if (!result.trim()) throw new Error('Saved scheduled result is empty.');
-    const delivery = await deliver(ctx, row, result);
+    // Same scheduled occurrence keeps the same marker through every retry.
+    // A later recurring occurrence gets a new marker because next_run advances.
+    const occurrence = safeText(row.next_run || row.created_at || 'once', 48).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const runMarker = '<!--pelex-scheduled-run:' + safeText(row.id, 80) + ':' + occurrence + '-->';
+    const resultForDelivery = result + '\n\n' + runMarker;
+    const delivery = await deliver(ctx, row, resultForDelivery);
     const recurring = row.active !== false && row.frequency && String(row.frequency).trim().toLowerCase() !== 'once';
     const nextRun = recurring ? nextAfter(row.next_run || new Date().toISOString(), row.frequency) : null;
     const ok = await rpc(ctx, 'complete_scheduled_task_v2', {
