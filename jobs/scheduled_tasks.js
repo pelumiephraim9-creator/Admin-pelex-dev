@@ -43,11 +43,18 @@ function cleanScheduledReport(value) {
     return !/^(?:sources?|references?|source links?|further reading)\s*:?\s*$/i.test(plain)
       && !/^(?:source|reference)\s*:/i.test(plain)
       && !/^https?:\/\//i.test(plain);
-  }).map(line => line
-    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '$1')
-    .replace(/https?:\/\/[^\s)\]]+/g, '')
-    .replace(/[ \t]+$/g, '')
-  ).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  }).map(line => {
+    const images = [];
+    return line
+      .replace(/!\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g, (_, alt, url) => {
+        images.push('![' + alt + '](' + url + ')');
+        return '__PELEX_IMAGE_' + (images.length - 1) + '__';
+      })
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '$1')
+      .replace(/https?:\/\/[^\s)\]]+/g, '')
+      .replace(/[ \t]+$/g, '')
+      .replace(/__PELEX_IMAGE_(\d+)__/g, (_, n) => images[Number(n)] || '');
+  }).join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 function scheduledTaskBrief(instruction) {
   return [
