@@ -7,7 +7,8 @@ function safeHttpUrl(value) {
     return u.protocol === 'https:' || u.protocol === 'http:' ? u.href : '';
   } catch (e) { return ''; }
 }
-const synthetic = /\b(ai[- ]?generated|illustration|illustrated|mock[- ]?up|3d render|cgi|concept art|digital art|vector art|cartoon|painting|drawing|wallpaper|infographic|simulation)\b/i;
+const synthetic = /\b(ai[- ]?generated|illustration|illustrated|mock[- ]?up|3d render|cgi|concept art|digital art|vector art|cartoon|painting|drawing|wallpaper|infographic|simulation|weather forecast|forecast card|weather report|poster|flyer|banner|brochure|advertisement|chart|diagram|collage|template)\b/i;
+const unrelatedRegion = /\b(benue|lagos|abuja|kano|kaduna|rivers|enugu|imo|osun|oyo|edo|delta|anambra|plateau|niger|kwara|sokoto|katsina|borno|yobe|adamawa|taraba|bauchi|gombe|jigawa|kebbi|zamfara|cross river|akwa ibom|bayelsa|ekiti|ogun|nasarawa|ebonyi)\b/i;
 
 module.exports = {
   name: 'find_images',
@@ -37,7 +38,7 @@ module.exports = {
       response = await fetch('https://google.serper.dev/images', {
         method: 'POST', signal: t.signal,
         headers: { 'X-API-KEY': ctx.CFG.serper, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ q: query + suffix, num: 10, gl: 'ng', hl: 'en' })
+        body: JSON.stringify({ q: query + suffix + ' -poster -flyer -infographic -weather chart -forecast graphic', num: 8, gl: 'ng', hl: 'en' })
       });
     } finally { t.done(); }
     if (!response.ok) throw new Error('Image search service returned HTTP ' + response.status + '.');
@@ -45,9 +46,12 @@ module.exports = {
     const rows = (Array.isArray(data.images) ? data.images : []).filter(item => {
       const title = clip(item.title, 180);
       const source = clip(item.source, 120);
+      const context = [title, source, clip(item.link, 220)].join(' ');
       if (synthetic.test(title) || synthetic.test(source)) return false;
+      const requestedState = query.toLowerCase().match(/\b(ondo|lagos|osun|oyo|ekiti|ogun|benue|kaduna|kano|rivers|enugu|imo|edo|delta|anambra|plateau|niger|kwara|sokoto|katsina|borno|yobe|adamawa|taraba|bauchi|gombe|jigawa|kebbi|zamfara|cross river|akwa ibom|bayelsa|nasarawa|ebonyi)\b/);
+      if (requestedState && unrelatedRegion.test(context) && !new RegExp('\\b' + requestedState[1] + '\\b', 'i').test(context)) return false;
       return !!safeHttpUrl(item.imageUrl || item.thumbnailUrl);
-    }).slice(0, 5);
+    }).slice(0, 2);
     if (!rows.length) return { text: 'No suitable real photographs were found for that search. Do not generate a mock-up or pretend an illustration is a real photograph. Tell the user that a verified photograph was not found.' };
     const blocks = rows.map((item, index) => {
       const imageUrl = safeHttpUrl(item.imageUrl || item.thumbnailUrl);
