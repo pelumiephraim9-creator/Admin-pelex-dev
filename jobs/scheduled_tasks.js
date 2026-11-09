@@ -36,17 +36,30 @@ async function rpc(ctx, name, body) {
 }
 
 /* Keep scheduled instructions task-focused. Do not turn editing, writing, or file tasks into research reports. */
+
+function cleanScheduledReport(value) {
+  return String(value || '').split(/\r?\n/).filter(line => {
+    const plain = line.replace(/^\s*(?:[-*•]\s*)?/, '').trim();
+    return !/^(?:sources?|references?|source links?|further reading)\s*:?\s*$/i.test(plain)
+      && !/^(?:source|reference)\s*:/i.test(plain)
+      && !/^https?:\/\//i.test(plain);
+  }).map(line => line
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '$1')
+    .replace(/https?:\/\/[^\s)\]]+/g, '')
+    .replace(/[ \t]+$/g, '')
+  ).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
 function scheduledTaskBrief(instruction) {
   return [
     'You are preparing a scheduled delivery for the user. This is a full professional briefing, not a short chat reply.',
     'DEPTH: Give a thorough, detailed, useful answer. Do not default to a short response. Do not give only a headline, teaser, generic summary, or a few bullets.',
     'STRUCTURE: Start with a clear title and executive summary. Then provide the relevant context and scope; detailed findings organised under useful headings; specific facts, dates, figures and examples; explain WHY each important point matters and the reasons behind your conclusions; practical implications; advantages and disadvantages where relevant; risks, limitations and what could change the conclusion; concrete recommendations and next steps; and a concise conclusion.',
     'COMPLETENESS: Answer the whole instruction and cover the entire requested period, location, subject or set of items. For recurring news or monitoring tasks, distinguish new developments from background and explain what changed since the prior run when history is available. Avoid repeating old material as new.',
-    'EVIDENCE: Use current research and relevant sources for factual or time-sensitive tasks. Cite the source names and links. Clearly separate verified facts, estimates and analysis. Never invent facts, citations, images, live feeds or exact figures. If information cannot be verified, say so.',
+    'EVIDENCE: Use current research and relevant sources internally for factual or time-sensitive tasks. Do not include source URLs, hyperlinks, citations, bibliography entries, or source-link lists in the delivered report. Present verified findings and analysis directly. Clearly separate verified facts, estimates and analysis. Never invent facts, images, live feeds or exact figures. If information cannot be verified, say so.',
     'IMAGES — STRICT RELEVANCE: If the task asks for a real-world view or environmental picture, use find_images to retrieve existing photographs from the web. Search only for the exact requested location and its immediate surroundings. For Akure, the scope is Akure, Ondo State, Nigeria only. Never mix in Benue, other Nigerian states, US weather, unrelated cities, generic weather graphics, posters, flyers, infographics, collages, mock-ups, AI art or generated illustrations. Return at most 1–2 strong, relevant photographs, not a gallery of loosely related results. Inspect image titles and context; if relevance cannot be established, do not show the image and explain that a suitable photo could not be verified. A web photograph is not necessarily live: never call it live camera footage or real-time imagery unless it is an actual functioning live camera feed. If no live webcam exists, say briefly that you found the latest available real photographs, not a live stream. Do not use image generation as a substitute for real-world weather or location photography.',
     'WEATHER TASKS: First use get_weather for the exact requested city and country. Keep every forecast figure tied to that location and its local time zone. If the person asks to see the environment, separately search for real photographs of that same city only. Do not use generic weather posters, forecast cards or images from other regions as environmental photographs. Clearly separate measured/current weather data from illustrative location photographs. Do not imply that a static photograph shows the current weather.',
-    'PRESENTATION: Use the clean minimalist response standard. Start with a concise title naming the exact location and report date. Give current conditions, a compact forecast, practical interpretation and useful advice in clear sections. Do not dump numbered source lists, raw URLs, search snippets or source-by-source commentary into the report. Keep any necessary attribution discreet and separate from the main explanation; do not let source notes interrupt the report.',
-    'DOCUMENTS: For editing or document tasks, preserve meaning and layout unless asked otherwise. If the user supplied document text, work from it without asking them to paste it again. If a downloadable file is requested, create the requested file and include its working preview/download links. Do not claim file creation unless it succeeds.',
+    'PRESENTATION: Use the clean minimalist response standard. Start with a concise title naming the exact location and report date. Give current conditions, a compact forecast, practical interpretation and useful advice in clear sections. Do not include source links, raw URLs, citations, source lists, search snippets or source-by-source commentary anywhere in the delivered report.',
+    'DOCUMENTS: For editing or document tasks, preserve meaning and layout unless asked otherwise. If the user supplied document text, work from it without asking them to paste it again. If a downloadable file is requested, create the requested file. Do not place backend or storage URLs in the report; the app provides its own in-app preview and download controls. Do not claim file creation unless it succeeds.',
     'If a task genuinely has little information available, explain what was checked and why detail is limited instead of padding or inventing.',
     '',
     'USER TASK:',
@@ -210,7 +223,7 @@ async function processTask(ctx, row) {
         uid: row.user_id,
         agentId: bot
       });
-      result = safeText(output && output.output || '', MAX_RESULT_CHARS);
+      result = cleanScheduledReport(safeText(output && output.output || '', MAX_RESULT_CHARS));
       if (!result.trim()) throw new Error('Agent returned an empty result.');
       runMarkerId = require('crypto').randomUUID();
       const staged = await ctx.sbFetch(
