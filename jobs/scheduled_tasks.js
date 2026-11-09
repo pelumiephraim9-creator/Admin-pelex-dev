@@ -52,12 +52,11 @@ function scheduledChatTitle(row) {
   const subject = safeText(row.instruction, 180)
     .split(/\nSource website:/i)[0]
     .replace(/\s+/g, ' ')
-    .trim() || 'Scheduled report';
-  const runAt = row.next_run && !Number.isNaN(Date.parse(row.next_run))
-    ? new Date(row.next_run)
-    : new Date();
-  const stamp = runAt.toISOString().slice(0, 16).replace('T', ' ');
-  return safeText(`Scheduled: ${subject.slice(0, 78)} · ${stamp}`, 120);
+    .trim() || 'Scheduled task';
+  // Stable across retries: next_run changes after a retry, but the same task
+  // must always deliver into the same chat.
+  const taskRef = safeText(row.id || '', 12);
+  return safeText(`Scheduled: ${subject.slice(0, 78)} · ${taskRef}`, 120);
 }
 
 async function ensureResultChat(ctx, row, result, knownChatId = null) {
@@ -201,7 +200,7 @@ async function processTask(ctx, row) {
     }
     if (!result.trim()) throw new Error('Saved scheduled result is empty.');
     const delivery = await deliver(ctx, row, result);
-    const recurring = row.active !== false && row.frequency && String(row.frequency).toLowerCase() !== 'once';
+    const recurring = row.active !== false && row.frequency && String(row.frequency).trim().toLowerCase() !== 'once';
     const nextRun = recurring ? nextAfter(row.next_run || new Date().toISOString(), row.frequency) : null;
     const ok = await rpc(ctx, 'complete_scheduled_task_v2', {
       p_task_id: row.id,
