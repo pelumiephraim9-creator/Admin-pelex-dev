@@ -39,9 +39,9 @@ async function rpc(ctx, name, body) {
 
 function cleanScheduledReport(value) {
   return String(value || '').split(/\r?\n/).filter(line => {
-    const plain = line.replace(/^\s*(?:[-*•]\s*)?/, '').trim();
-    return !/^(?:sources?|references?|source links?|further reading)\s*:?\s*$/i.test(plain)
-      && !/^(?:source|reference)\s*:/i.test(plain)
+    const plain = line.replace(/^\s*(?:[-*•]\s*)?/, '').trim().replace(/^[#*_\s]+|[#*_\s]+$/g, '');
+    return !/^(?:sources?|references?|source links?|further reading|bibliography)\s*:?\s*$/i.test(plain)
+      && !/^(?:sources?|references?)\s*:/i.test(plain)
       && !/^https?:\/\//i.test(plain);
   }).map(line => {
     const images = [];
