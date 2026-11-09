@@ -35,7 +35,7 @@ function cleanMarkdownLine(raw) {
 function buildPdf(title, content) {
   const lines = [];
   if (title) lines.push(...wrapLine(title, 78), '');
-  for (const raw of String(content).replace(/\\r/g, '').split('\\n')) {
+  for (const raw of String(content).replace(/\r/g, '').split('\n')) {
     const line = cleanMarkdownLine(raw);
     if (!line.trim()) lines.push('');
     else {
