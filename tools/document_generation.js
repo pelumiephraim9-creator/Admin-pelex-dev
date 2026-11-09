@@ -1,9 +1,9 @@
 'use strict';
 
 function pdfEscape(value) {
-  const cp1252 = { '€': '\\x80', '‚': '\\x82', 'ƒ': '\\x83', '„': '\\x84', '…': '\\x85', '†': '\\x86', '‡': '\\x87', 'ˆ': '\\x88', '‰': '\\x89', 'Š': '\\x8A', '‹': '\\x8B', 'Œ': '\\x8C', 'Ž': '\\x8E', '‘': '\\x91', '’': '\\x92', '“': '\\x93', '”': '\\x94', '•': '\\x95', '–': '\\x96', '—': '\\x97', '™': '\\x99', 'š': '\\x9A', '›': '\\x9B', 'œ': '\\x9C', 'ž': '\\x9E', 'Ÿ': '\\x9F' };
-  let s = String(value == null ? '' : value).replace(/[\\u2018\\u2019\\u201C\\u201D\\u2013\\u2014\\u2022\\u2026]/g, ch => cp1252[ch] || '?');
-  s = s.replace(/\\\\/g, '\\\\\\\\').replace(/\\(/g, '\\\\(').replace(/\\)/g, '\\\\)');
+  const cp1252 = { '€': 128, '‚': 130, 'ƒ': 131, '„': 132, '…': 133, '†': 134, '‡': 135, 'ˆ': 136, '‰': 137, 'Š': 138, '‹': 139, 'Œ': 140, 'Ž': 142, '‘': 145, '’': 146, '“': 147, '”': 148, '•': 149, '–': 150, '—': 151, '™': 153, 'š': 154, '›': 155, 'œ': 156, 'ž': 158, 'Ÿ': 159 };
+  let s = String(value == null ? '' : value).replace(/[€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—™š›œžŸ]/g, ch => String.fromCharCode(cp1252[ch]));
+  s = s.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
   return Array.from(s, ch => ch.charCodeAt(0) > 255 ? '?' : ch).join('');
 }
 function wrapLine(line, max = 88) {
@@ -21,16 +21,15 @@ function wrapLine(line, max = 88) {
   return out.length ? out : [''];
 }
 function cleanMarkdownLine(raw) {
-  let line = String(raw || '').replace(/\\t/g, '    ').trimEnd();
-  // Keep heading text but remove Markdown decoration from the exported document.
-  line = line.replace(/^\\s{0,3}#{1,6}\\s*/, '');
-  line = line.replace(/^\\s*[-*+]\\s+/, '• ');
-  line = line.replace(/^\\s*\\d+[.)]\\s+/, '• ');
-  // Convert common malformed label patterns such as **Caption:** or Caption:**.
-  line = line.replace(/^\\s*\\*{1,3}([A-Za-z][A-Za-z /&-]{0,28}):\\*{1,3}\\s*/, '$1: ');
-  line = line.replace(/\\*{1,3}([^*]+)\\*{1,3}/g, '$1');
-  line = line.replace(/\\*+/g, '');
-  line = line.replace(/^\\s*#+\\s*/, '');
+  let line = String(raw || '').replace(/\t/g, '    ').trimEnd();
+  line = line.replace(/^\s{0,3}#{1,6}\s*/, '');
+  line = line.replace(/^\s*[-*+]\s+/, '• ');
+  line = line.replace(/^\s*\d+[.)]\s+/, '• ');
+  line = line.replace(/^\s*\*{1,3}([A-Za-z][A-Za-z /&-]{0,28}):\*{1,3}\s*/, '$1: ');
+  line = line.replace(/^\s*([A-Za-z][A-Za-z /&-]{0,28}):\*{1,3}\s*/, '$1: ');
+  line = line.replace(/^\s*(Content|Caption|Voiceover|Hashtags|Platform|Format)\.\*+\s*/i, '$1: ');
+  line = line.replace(/\*{1,3}([^*]+)\*{1,3}/g, '$1');
+  line = line.replace(/\*+/g, '');
   return line;
 }
 function buildPdf(title, content) {
