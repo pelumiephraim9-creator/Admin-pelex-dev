@@ -38,14 +38,18 @@ async function rpc(ctx, name, body) {
 /* Keep scheduled instructions task-focused. Do not turn editing, writing, or file tasks into research reports. */
 function scheduledTaskBrief(instruction) {
   return [
-    'Complete the user\'s requested task directly and follow the requested output format.',
-    'For editing, proofreading, rewriting, or document tasks, preserve the meaning and structure unless asked otherwise.',
-    'If the user supplied the document text, work from that text; do not ask them to upload or paste it again.',
-    'If a downloadable file is requested, use the document_generation tool to create it. Do not claim a file was created unless the tool returns a successful file link.',
+    'You are preparing a scheduled delivery for the user. This is a full professional briefing, not a short chat reply.',
+    'DEPTH: Give a thorough, detailed, useful answer. Do not default to a short response. Do not give only a headline, teaser, generic summary, or a few bullets.',
+    'STRUCTURE: Start with a clear title and executive summary. Then provide the relevant context and scope; detailed findings organised under useful headings; specific facts, dates, figures and examples; explain WHY each important point matters and the reasons behind your conclusions; practical implications; advantages and disadvantages where relevant; risks, limitations and what could change the conclusion; concrete recommendations and next steps; and a concise conclusion.',
+    'COMPLETENESS: Answer the whole instruction and cover the entire requested period, location, subject or set of items. For recurring news or monitoring tasks, distinguish new developments from background and explain what changed since the prior run when history is available. Avoid repeating old material as new.',
+    'EVIDENCE: Use current research and relevant sources for factual or time-sensitive tasks. Cite the source names and links. Clearly separate verified facts, estimates and analysis. Never invent facts, citations, images, live feeds or exact figures. If information cannot be verified, say so.',
+    'IMAGES: If the user asks to see a real place or how it looks in real life, search for genuine existing photographs of that exact place first. Do not use image generation, mock-ups, concept art, illustrations, 3D renders or synthetic satellite scenes as substitutes for real photographs. Only claim satellite imagery when the source is genuine satellite imagery. Include image sources.',
+    'DOCUMENTS: For editing or document tasks, preserve meaning and layout unless asked otherwise. If the user supplied document text, work from it without asking them to paste it again. If a downloadable file is requested, create the requested file and include its working preview/download links. Do not claim file creation unless it succeeds.',
+    'If a task genuinely has little information available, explain what was checked and why detail is limited instead of padding or inventing.',
     '',
-    'User task:',
+    'USER TASK:',
     instruction
-  ].join('\\n');
+  ].join('\n');
 }
 
 function scheduledChatTitle(row) {
@@ -185,7 +189,7 @@ async function processTask(ctx, row) {
         sid: `sched-${row.id}`,
         text: scheduledTaskBrief(instruction),
         memoryText: instruction,
-        meta: { userId: row.user_id, userName: safeText(row.user_name || 'user', 120), scheduledTaskId: row.id },
+        meta: { userId: row.user_id, userName: safeText(row.user_name || 'user', 120), scheduledTaskId: row.id, custom: { tone: 'Professional', length: 'Detailed', instructions: 'Scheduled deliveries must be comprehensive, evidence-based and structured with clear headings. Explain the reasons behind findings, practical implications, limitations and next steps. Do not provide a short chat-style answer.' } },
         privacy: 'private',
         uid: row.user_id,
         agentId: bot
