@@ -55,7 +55,7 @@ test('General scheduled task runs through the shared agent interface and saves a
   assert.equal(agent.args.agentId, 'general');
   assert.equal(agent.args.uid, 'user-1');
   assert.ok(complete);
-  assert.equal(complete.body.p_delivery_confirmed, false);
+  assert.equal(complete.body.p_delivery_confirmed, true);
   assert.match(complete.body.p_result, /scheduled result/);
   assert.match(complete.body.p_result, /<!--pelex-scheduled-run:task-1:/);
   assert.match(complete.body.p_result, /<!--pelex-scheduled-chat:scheduled-chat-1-->/);
