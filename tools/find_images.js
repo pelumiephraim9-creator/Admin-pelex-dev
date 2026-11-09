@@ -38,7 +38,7 @@ module.exports = {
       response = await fetch('https://google.serper.dev/images', {
         method: 'POST', signal: t.signal,
         headers: { 'X-API-KEY': ctx.CFG.serper, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ q: query + suffix + ' -poster -flyer -infographic -weather chart -forecast graphic', num: 12, gl: 'ng', hl: 'en' })
+        body: JSON.stringify({ q: query + suffix + ' -poster -flyer -infographic -weather chart -forecast graphic -watermark -shutterstock -getty -istock -stockphoto', num: 12, gl: 'ng', hl: 'en' })
       });
     } finally { t.done(); }
     if (!response.ok) throw new Error('Image search service returned HTTP ' + response.status + '.');
@@ -47,17 +47,15 @@ module.exports = {
       const title = clip(item.title, 180);
       const source = clip(item.source, 120);
       const context = [title, source, clip(item.link, 220)].join(' ');
-      if (synthetic.test(title) || synthetic.test(source)) return false;
+      if (synthetic.test(context)) return false;
       const requestedState = query.toLowerCase().match(/\b(ondo|lagos|osun|oyo|ekiti|ogun|benue|kaduna|kano|rivers|enugu|imo|edo|delta|anambra|plateau|niger|kwara|sokoto|katsina|borno|yobe|adamawa|taraba|bauchi|gombe|jigawa|kebbi|zamfara|cross river|akwa ibom|bayelsa|nasarawa|ebonyi)\b/);
       if (requestedState && unrelatedRegion.test(context) && !new RegExp('\\b' + requestedState[1] + '\\b', 'i').test(context)) return false;
       return !!safeHttpUrl(item.imageUrl || item.thumbnailUrl);
     }).slice(0, 2);
     if (!rows.length) return { text: 'No suitable real photographs were found for that search. Do not generate a mock-up or pretend an illustration is a real photograph. Tell the user that a verified photograph was not found.' };
-    const blocks = rows.map((item, index) => {
+    const blocks = rows.map(item => {
       const imageUrl = safeHttpUrl(item.imageUrl || item.thumbnailUrl);
-      const pageUrl = safeHttpUrl(item.link);
       const title = clip(item.title || query, 100) || query;
-      const source = clip(item.source || 'Image source', 80);
       return '![Real photograph: ' + title.replace(/[\[\]]/g, '') + '](' + imageUrl + ')';
     });
     return {
