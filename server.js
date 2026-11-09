@@ -958,7 +958,11 @@ async function handleChat(req, res, stream) {
     if (!allow('whoday:' + who.id, who.kind === 'user' ? CFG.userDaily : CFG.guestDaily, 86400000)) return send(res, 429, { error: who.kind === 'user' ? 'Daily message limit reached. Please come back tomorrow.' : 'You have used your free guest messages for today. Sign in for more.' });
   }
   let body; try { body = await readBody(req, 6500000); } catch (e) { return send(res, e.code || 400, { error: e.code === 413 ? 'Message or images too large.' : 'Bad request.' }); }
-  // Uploaded document text is intentionally allowed a larger limit than ordinary chat. The frontend prefixes extracted files with Document \"...\":; a 4k chat cap was silently truncating long PDFs and accounting sheets before the model could inspect them.\n  const rawChatInput = String(body.chatInput == null ? '' : body.chatInput);\n  const isDocumentInput = /^Document \\\"[^\\\"]+\\\":\\s*/i.test(rawChatInput);\n  const text = clip(rawChatInput, isDocumentInput ? 100000 : CFG.maxInput).trim();
+  // Uploaded document text needs a larger limit than ordinary chat.
+  // The frontend prefixes extracted files with Document "filename":.
+  const rawChatInput = String(body.chatInput == null ? '' : body.chatInput);
+  const isDocumentInput = /^Document "[^"]+":\s*/i.test(rawChatInput);
+  const text = clip(rawChatInput, isDocumentInput ? 100000 : CFG.maxInput).trim();
   const rawImgs = body.metadata && Array.isArray(body.metadata.images) ? body.metadata.images : [];
   const images = rawImgs.slice(0, 6).filter(u => typeof u === 'string' && u.length < 2000000 && /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(u));
   if (!text) return send(res, 400, { error: 'Empty message.' });
