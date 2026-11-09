@@ -104,10 +104,10 @@ async function ensureResultChat(ctx, row, result, knownChatId = null) {
   if (!latestAssistant || latestAssistant.content !== result) {
     const payload = created || !previous.length
       ? [
-          { chat_id: chatId, role: 'user', content: 'Scheduled task: ' + safeText(row.instruction, 6000) },
-          { chat_id: chatId, role: 'assistant', content: result }
+          { chat_id: chatId, user_id: row.user_id, role: 'user', content: 'Scheduled task: ' + safeText(row.instruction, 6000) },
+          { chat_id: chatId, user_id: row.user_id, role: 'assistant', content: result }
         ]
-      : [{ chat_id: chatId, role: 'assistant', content: result }];
+      : [{ chat_id: chatId, user_id: row.user_id, role: 'assistant', content: result }];
     const save = await ctx.sbFetch('/rest/v1/messages', {
       method: 'POST',
       headers: { Prefer: 'return=minimal' },
