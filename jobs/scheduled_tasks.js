@@ -35,24 +35,17 @@ async function rpc(ctx, name, body) {
   return r.json().catch(() => null);
 }
 
-/* The brief every scheduled task receives. It asks for a full, structured result for ANY kind of task
-   (films, products, prices, news, jobs, places, plans), not a short paragraph. */
-function fullReportBrief(instruction) {
+/* Keep scheduled instructions task-focused. Do not turn editing, writing, or file tasks into research reports. */
+function scheduledTaskBrief(instruction) {
   return [
-    'You are preparing a COMPLETE scheduled report. A short paragraph is not acceptable.',
-    'Use this structure with clear headings, and skip a heading only when it truly does not apply:',
-    '1. Title: the subject, with its year or date where relevant.',
-    '2. Summary: the key facts, in full, with numbers, dates and names.',
-    '3. Why it is worth it: the concrete reasons to watch, buy, read, visit or act, one by one.',
-    '4. Rating: out of 10, with the reason for the score, when the subject can be rated.',
-    '5. Pictures: show real pictures of the subject with the find_images tool and include their image links. If none suitable exist, generate one with image_generate and include it.',
-    '6. Practical details: where to get it, cost, availability, timing, or what to do next.',
-    '7. Conclusion: three to five sentences giving your honest recommendation and who it is for.',
-    '8. Sources: the links used.',
-    'Do not claim an external action was completed unless a connected tool confirms it.',
+    'Complete the user\'s requested task directly and follow the requested output format.',
+    'For editing, proofreading, rewriting, or document tasks, preserve the meaning and structure unless asked otherwise.',
+    'If the user supplied the document text, work from that text; do not ask them to upload or paste it again.',
+    'If a downloadable file is requested, use the document_generation tool to create it. Do not claim a file was created unless the tool returns a successful file link.',
     '',
-    'Task: ' + instruction
-  ].join('\n');
+    'User task:',
+    instruction
+  ].join('\\n');
 }
 
 function scheduledChatTitle(row) {
@@ -180,17 +173,33 @@ async function processTask(ctx, row) {
     }
     if (!row.instruction || !String(row.instruction).trim()) throw new Error('Scheduled task has no instruction.');
     const instruction = safeText(row.instruction, 6000);
-    const output = await ctx.runAgent({
-      sid: `sched-${row.id}`,
-      text: fullReportBrief(instruction),
-      memoryText: instruction,
-      meta: { userId: row.user_id, userName: safeText(row.user_name || 'user', 120), scheduledTaskId: row.id },
-      privacy: 'private',
-      uid: row.user_id,
-      agentId: bot
-    });
-    const result = safeText(output && output.output || '', MAX_RESULT_CHARS);
-    if (!result.trim()) throw new Error('Agent returned an empty result.');
+    // Persist the generated result before delivery. If delivery or completion fails,
+    // the next claim reuses this exact result instead of asking the model to run again.
+    const pendingPrefix = '<!--pelex-scheduled-pending-->\\n';
+    let result = '';
+    const prior = String(row.last_result || '');
+    if (prior.startsWith(pendingPrefix)) {
+      result = safeText(prior.slice(pendingPrefix.length), MAX_RESULT_CHARS);
+      ctx.log('scheduled task resuming saved result:', row.id);
+    } else {
+      const output = await ctx.runAgent({
+        sid: `sched-${row.id}`,
+        text: scheduledTaskBrief(instruction),
+        memoryText: instruction,
+        meta: { userId: row.user_id, userName: safeText(row.user_name || 'user', 120), scheduledTaskId: row.id },
+        privacy: 'private',
+        uid: row.user_id,
+        agentId: bot
+      });
+      result = safeText(output && output.output || '', MAX_RESULT_CHARS);
+      if (!result.trim()) throw new Error('Agent returned an empty result.');
+      const staged = await ctx.sbFetch(
+        `/rest/v1/scheduled_tasks?id=eq.${encodeURIComponent(row.id)}&status=eq.running&claim_token=eq.${encodeURIComponent(token)}`,
+        { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ last_result: pendingPrefix + result }) }
+      );
+      if (!staged.ok) throw new Error(`Could not checkpoint scheduled result (${staged.status}): ${safeText(await staged.text().catch(() => ''), 300)}`);
+    }
+    if (!result.trim()) throw new Error('Saved scheduled result is empty.');
     const delivery = await deliver(ctx, row, result);
     const recurring = row.active !== false && row.frequency && String(row.frequency).toLowerCase() !== 'once';
     const nextRun = recurring ? nextAfter(row.next_run || new Date().toISOString(), row.frequency) : null;
