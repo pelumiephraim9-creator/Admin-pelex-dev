@@ -132,7 +132,9 @@ async function deliver(ctx, row, result) {
     throw error;
   }
   const chat = await ensureResultChat(ctx, row, result);
-  return { confirmed: true, result, chatId: chat.chatId, chatTitle: chat.title };
+  // The frontend reads this hidden marker from the task row to open the exact chat.
+  const taskResult = result + '\n\n<!--pelex-scheduled-chat:' + chat.chatId + '-->';
+  return { confirmed: true, result: taskResult, chatId: chat.chatId, chatTitle: chat.title };
 }
 async function processTask(ctx, row) {
   const token = row.claim_token;
