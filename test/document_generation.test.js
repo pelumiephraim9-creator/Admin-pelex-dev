@@ -17,8 +17,9 @@ test('document_generation creates and stores a valid PDF attachment', async () =
   assert.equal(saved.name, 'corrected-caption.pdf');
   assert.equal(saved.bytes.subarray(0, 8).toString('ascii'), '%PDF-1.4');
   assert.ok(saved.bytes.toString('ascii').includes('startxref'));
-  assert.match(result.markdown, /preview/);
-  assert.match(result.markdown, /download/);
+  assert.match(result.markdown, /\[Download corrected-caption\.pdf\]\(https:\/\/example\.test\/download\)/);
+  assert.match(result.markdown, /\[Preview corrected-caption\.pdf\]\(https:\/\/example\.test\/preview\)/);
+  assert.doesNotMatch(result.markdown, /Open PDF preview|Download PDF/);
 });
 
 test('document_generation rejects empty content', async () => {
