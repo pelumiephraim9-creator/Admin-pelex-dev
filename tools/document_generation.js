@@ -101,8 +101,10 @@ module.exports = {
     const filename = String(args.filename || 'pelex-edited-document.pdf').replace(/[^a-zA-Z0-9._-]/g, '_');
     const bytes = buildPdf(title, content);
     const saved = await ctx.saveFile({ name: filename.toLowerCase().endsWith('.pdf') ? filename : filename + '.pdf', mime: 'application/pdf', bytes, folder: 'files' });
+    const fileName = filename.toLowerCase().endsWith('.pdf') ? filename : filename + '.pdf';
     return {
-      text: 'The PDF has been generated and saved successfully. Open the saved file from the in-app preview panel to preview or download it.'
+      text: 'The PDF has been generated and saved successfully.',
+      markdown: '[Download ' + fileName + '](' + saved.downloadUrl + ')\\n[Preview ' + fileName + '](' + saved.url + ')'
     };
   }
 };
