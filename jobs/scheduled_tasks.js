@@ -184,12 +184,20 @@ async function processTask(ctx, row) {
     const instruction = safeText(row.instruction, 6000);
     // Persist the generated result before delivery. If delivery or completion fails,
     // the next claim reuses this exact result instead of asking the model to run again.
-    const pendingPrefix = '<!--pelex-scheduled-pending-->\\n';
+    const pendingPrefix = '<!--pelex-scheduled-pending:';
+    const legacyPendingPrefix = '<!--pelex-scheduled-pending-->\\n';
     let result = '';
+    let runMarkerId = '';
     const prior = String(row.last_result || '');
-    if (prior.startsWith(pendingPrefix)) {
-      result = safeText(prior.slice(pendingPrefix.length), MAX_RESULT_CHARS);
+    const pendingMatch = prior.match(/^<!--pelex-scheduled-pending:([a-z0-9-]+)-->\\n/i);
+    if (pendingMatch) {
+      runMarkerId = pendingMatch[1];
+      result = safeText(prior.slice(pendingMatch[0].length), MAX_RESULT_CHARS);
       ctx.log('scheduled task resuming saved result:', row.id);
+    } else if (prior.startsWith(legacyPendingPrefix)) {
+      result = safeText(prior.slice(legacyPendingPrefix.length), MAX_RESULT_CHARS);
+      runMarkerId = require('crypto').createHash('sha256').update(String(row.id) + result).digest('hex').slice(0, 20);
+      ctx.log('scheduled task resuming legacy saved result:', row.id);
     } else {
       const output = await ctx.runAgent({
         sid: `sched-${row.id}`,
@@ -202,18 +210,18 @@ async function processTask(ctx, row) {
       });
       result = safeText(output && output.output || '', MAX_RESULT_CHARS);
       if (!result.trim()) throw new Error('Agent returned an empty result.');
+      runMarkerId = require('crypto').randomUUID();
       const staged = await ctx.sbFetch(
         `/rest/v1/scheduled_tasks?id=eq.${encodeURIComponent(row.id)}&status=eq.running&claim_token=eq.${encodeURIComponent(token)}`,
-        { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ last_result: pendingPrefix + result }) }
+        { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ last_result: pendingPrefix + runMarkerId + '-->\\n' + result }) }
       );
       if (!staged.ok) throw new Error(`Could not checkpoint scheduled result (${staged.status}): ${safeText(await staged.text().catch(() => ''), 300)}`);
     }
     if (!result.trim()) throw new Error('Saved scheduled result is empty.');
-    // Same scheduled occurrence keeps the same marker through every retry.
-    // A later recurring occurrence gets a new marker because next_run advances.
-    const occurrence = safeText(row.next_run || row.created_at || 'once', 48).replace(/[^a-zA-Z0-9_-]/g, '_');
-    const runMarker = '<!--pelex-scheduled-run:' + safeText(row.id, 80) + ':' + occurrence + '-->';
-    const resultForDelivery = result + '\n\n' + runMarker;
+    // This run ID is saved alongside the result, so retries retain the same identity.
+    // A later recurring occurrence gets a fresh ID.
+    const runMarker = '<!--pelex-scheduled-run:' + safeText(row.id, 80) + ':' + runMarkerId + '-->';
+    const resultForDelivery = result + '\\n\\n' + runMarker;
     const delivery = await deliver(ctx, row, resultForDelivery);
     const recurring = row.active !== false && row.frequency && String(row.frequency).trim().toLowerCase() !== 'once';
     const nextRun = recurring ? nextAfter(row.next_run || new Date().toISOString(), row.frequency) : null;
