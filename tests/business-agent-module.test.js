@@ -12,7 +12,7 @@ test('Business Agent module has the canonical identity and remains gated', () =>
 });
 
 test('Business Agent instructions enforce core accounting distinctions', () => {
-  const rules = business.instructions.toLowerCase();
+  const rules = business.instructions.toLowerCase().replace(/\\s+/g, ' ');
   for (const phrase of [
     'startup capital',
     'operating revenue',
@@ -30,6 +30,6 @@ test('Business Agent instructions enforce core accounting distinctions', () => {
 });
 
 test('Business Agent does not assume every business is a lender', () => {
-  assert.match(business.instructions, /optional and individually configurable/i);
+  assert.match(business.instructions, /optional and individually\\s+configurable/i);
   assert.match(business.instructions, /never assume the business is a lender/i);
 });
