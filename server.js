@@ -14,6 +14,9 @@
     SUPABASE_SERVICE_KEY required   service role key (memory table is not readable by the public)
     LOCKALLY_API_KEY     for emails   Lockally send:write token; HOOK_SECRET protects email webhooks; EMAIL_FROM must be on a verified domain
     GEMINI_API_KEY       optional   Google AI Studio key (free tier), used for coding, pictures and big documents
+    NVIDIA_API_KEY       optional   NVIDIA API Catalog key (OpenAI-compatible model endpoint)
+    NVIDIA_BASE          optional   default: https://integrate.api.nvidia.com/v1
+    NVIDIA_MODELS        optional   comma list; default: poolside/laguna-xs-2.1,minimaxai/minimax-m3.1-flash
     SUPABASE_ANON_KEY    advised    the public (anon / publishable) key, used only to check logins
     SERPER_API_KEY       optional   turns on the web_search tool
     EDGE_SECRET          advised    long random text; same value in the Cloudflare Worker. Direct hits without it are refused
@@ -558,13 +561,14 @@ async function runTool(name, args, run) {
    vision   gemini > openrouter > claude   (Mistral is still supported: set MISTRAL_API_KEY and add it to a ROUTE_ list)
    A provider with no key is skipped. A failing provider cools off for a while so the next message does not wait on it. */
 const PRIVATE_OK = new Set((ENV.PRIVATE_PROVIDERS || 'groq,cloudflare,sambanova,claude').split(',').map(x => x.trim()).filter(Boolean));
-const DEFAULT_ROUTES = { general: 'groq,openrouter,cloudflare,gemini,sambanova,claude', coding: 'gemini,groq,openrouter,sambanova,cloudflare,claude', data: 'sambanova,groq,gemini,openrouter,cloudflare,claude', vision: 'gemini,openrouter,claude' };
+const DEFAULT_ROUTES = { general: 'groq,openrouter,nvidia,cloudflare,gemini,sambanova,claude', coding: 'gemini,groq,nvidia,openrouter,sambanova,cloudflare,claude', data: 'sambanova,groq,nvidia,gemini,openrouter,cloudflare,claude', vision: 'gemini,openrouter,claude' };
 const routeOf = task => String(ENV['ROUTE_' + String(task).toUpperCase()] || DEFAULT_ROUTES[task] || DEFAULT_ROUTES.general).split(',').map(x => x.trim()).filter(Boolean);
 Object.assign(CFG, {
   cfModels: String(ENV.CF_MODELS || ENV.CF_MODEL || '@cf/meta/llama-3.3-70b-instruct-fp8-fast,@cf/qwen/qwen2.5-coder-32b-instruct,@cf/deepseek-ai/deepseek-r1-distill-qwen-32b').split(',').map(x => x.trim()).filter(Boolean),
   cfModel: String(ENV.CF_MODELS || ENV.CF_MODEL || '@cf/meta/llama-3.3-70b-instruct-fp8-fast').split(',')[0].trim(),
   mistralKey: ENV.MISTRAL_API_KEY || '', mistralBase: ENV.MISTRAL_BASE || 'https://api.mistral.ai/v1', mistralModel: ENV.MISTRAL_MODEL || 'mistral-large-latest', mistralCodeModel: ENV.MISTRAL_CODE_MODEL || ENV.MISTRAL_MODEL || 'codestral-latest',
   sambaKey: ENV.SAMBANOVA_API_KEY || '', sambaBase: ENV.SAMBANOVA_BASE || 'https://api.sambanova.ai/v1',
+   nvidiaKey: ENV.NVIDIA_API_KEY || '', nvidiaBase: String(ENV.NVIDIA_BASE || 'https://integrate.api.nvidia.com/v1').replace(/\/+$/, ''), nvidiaModels: String(ENV.NVIDIA_MODELS || 'poolside/laguna-xs-2.1,minimaxai/minimax-m3.1-flash').split(',').map(x => x.trim()).filter(Boolean),
   // Keep this list to documented SambaNova model IDs. The old Qwen3-32B ID
   // returned 404; a 404 should move to the next candidate, while 402 means
   // the account needs billing and cannot be fixed by rotating model IDs.
@@ -588,6 +592,7 @@ function buildProvider(id, task) {
   if (id === 'gemini') return CFG.geminiKey ? CFG.geminiModels.map(m => oai(id, CFG.geminiBase, CFG.geminiKey, m)[0]) : [];
   if (id === 'mistral') return CFG.mistralKey && !vision ? oai(id, CFG.mistralBase, CFG.mistralKey, code ? CFG.mistralCodeModel : CFG.mistralModel) : [];
   if (id === 'sambanova') return CFG.sambaKey && !vision ? CFG.sambaModels.map(m => oai(id, CFG.sambaBase, CFG.sambaKey, m)[0]) : [];
+   if (id === 'nvidia') return CFG.nvidiaKey && !vision ? CFG.nvidiaModels.map(m => oai(id, CFG.nvidiaBase, CFG.nvidiaKey, m)[0]) : [];
   if (id === 'claude') return CFG.claudeKey ? CFG.claudeModels.map(m => ({ id, kind: 'anthropic', name: 'claude:' + m, url: CFG.claudeBase + '/v1/messages', key: CFG.claudeKey, model: m, extra: {} })) : [];
   return [];
 }
@@ -1142,7 +1147,7 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': mime, 'Content-Length': bytes.length, 'Content-Disposition': (view ? 'inline' : 'attachment') + '; filename="' + name.replace(/["\\\\]/g, '_') + '"', 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff', ...(view ? { 'Content-Security-Policy': "sandbox; default-src 'self' data: https:; img-src * data:; style-src 'unsafe-inline' https:;" } : {}) });
       return res.end(bytes);
     }
-    if (req.method === 'GET' && path === '/health') return send(res, 200, { ok: true, auth: { required: CFG.requireAuth, edge: !!CFG.edgeSecret, guest: !!CFG.turnstileSecret }, models: providers().map(p => p.name), chains: Object.fromEntries(['general', 'coding', 'data', 'vision'].map(t => [t, [...new Set(chain(t, 'public').map(p => p.id))]])), usage, claudeToday: claudeUse.n, slashCommands: COMMANDS ? COMMANDS.count : 0, providersConfigured: { groq: !!CFG.groqKey, openrouter: !!CFG.orKey, cloudflare: !!(ENV.CF_ACCOUNT_ID && ENV.CF_API_TOKEN), gemini: !!CFG.geminiKey, sambanova: !!CFG.sambaKey, claude: !!CFG.claudeKey, mistral: !!CFG.mistralKey }, memory: sbOn(), memoryTable: await memoryStatus(), mediaBucket: await mediaStatus(), search: !!CFG.serper, files: sbOn(), extraTools: [...EXT.keys()] });
+    if (req.method === 'GET' && path === '/health') return send(res, 200, { ok: true, auth: { required: CFG.requireAuth, edge: !!CFG.edgeSecret, guest: !!CFG.turnstileSecret }, models: providers().map(p => p.name), chains: Object.fromEntries(['general', 'coding', 'data', 'vision'].map(t => [t, [...new Set(chain(t, 'public').map(p => p.id))]])), usage, claudeToday: claudeUse.n, slashCommands: COMMANDS ? COMMANDS.count : 0, providersConfigured: { groq: !!CFG.groqKey, openrouter: !!CFG.orKey, nvidia: !!CFG.nvidiaKey, cloudflare: !!(ENV.CF_ACCOUNT_ID && ENV.CF_API_TOKEN), gemini: !!CFG.geminiKey, sambanova: !!CFG.sambaKey, claude: !!CFG.claudeKey, mistral: !!CFG.mistralKey }, memory: sbOn(), memoryTable: await memoryStatus(), mediaBucket: await mediaStatus(), search: !!CFG.serper, files: sbOn(), extraTools: [...EXT.keys()] });
     if (req.method === 'POST' && (path === '/chat' || path === '/')) return await handleChat(req, res, false);
     if (req.method === 'POST' && path === '/chat/stream') return await handleChat(req, res, true);
     return send(res, 404, { error: 'Not found' });
