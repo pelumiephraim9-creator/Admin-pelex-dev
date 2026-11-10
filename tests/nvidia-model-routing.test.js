@@ -16,7 +16,10 @@ function inspectWithEnv(extraEnv) {
     env: { ...process.env, ...extraEnv, PELEX_TEST_SERVER_PATH: path.join(__dirname, '..', 'server.js') }
   });
   assert.equal(result.status, 0, result.stderr);
-  return JSON.parse(result.stdout.trim().split('\\n').at(-1));
+  const outputLines = result.stdout.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  const jsonLine = outputLines.findLast(line => line.startsWith('{') && line.endsWith('}'));
+  assert.ok(jsonLine, `Expected JSON output from backend inspection. stdout was:\n${result.stdout}\nstderr was:\n${result.stderr}`);
+  return JSON.parse(jsonLine);
 }
 
 test('NVIDIA models are added to general, coding and data routes but not vision', () => {
