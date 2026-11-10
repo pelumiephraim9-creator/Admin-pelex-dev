@@ -571,7 +571,7 @@ Object.assign(CFG, {
   sambaModels: String(ENV.SAMBANOVA_MODELS || ENV.SAMBANOVA_MODEL || 'Meta-Llama-3.3-70B-Instruct').split(',').map(x => x.trim()).filter(x => x && x.toLowerCase() !== 'qwen3-32b'),
   sambaModel: String(ENV.SAMBANOVA_MODELS || ENV.SAMBANOVA_MODEL || 'Meta-Llama-3.3-70B-Instruct').split(',')[0].trim(),
   claudeKey: ENV.ANTHROPIC_API_KEY || '', claudeBase: ENV.ANTHROPIC_BASE || 'https://api.anthropic.com', claudeModels: ['claude-haiku-5-5'], claudeModel: 'claude-haiku-5-5', claudeWorkspaceId: ENV.ANTHROPIC_WORKSPACE_ID || '', claudeDaily: +ENV.CLAUDE_DAILY_MAX || 200,
-  geminiKey: ENV.GEMINI_API_KEY || '', geminiBase: ENV.GEMINI_BASE || 'https://generativelanguage.googleapis.com/v1beta/openai', geminiModels: String(ENV.GEMINI_MODELS || ENV.GEMINI_MODEL || 'gemini-3.8-flash,gemini-3.5-flash-lite').split(',').map(x => x.trim()).filter(Boolean), geminiModel: String(ENV.GEMINI_MODELS || ENV.GEMINI_MODEL || 'gemini-3.8-flash').split(',')[0].trim(),
+  geminiKey: ENV.GEMINI_API_KEY || '', geminiBase: ENV.GEMINI_BASE || 'https://generativelanguage.googleapis.com/v1beta/openai', geminiModels: String(ENV.GEMINI_MODELS || ENV.GEMINI_MODEL || 'gemini-3.8-flash,gemini-3.6-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-2.5-flash-lite').split(',').map(x => x.trim()).filter(Boolean), geminiModel: String(ENV.GEMINI_MODELS || ENV.GEMINI_MODEL || 'gemini-3.8-flash').split(',')[0].trim(),
   cfBase: ENV.CF_AI_BASE || `https://api.cloudflare.com/client/v4/accounts/${ENV.CF_ACCOUNT_ID || 'x'}/ai/v1`,
 });
 const cooling = new Map(), providerCooling = new Map(), usage = {}, claudeUse = { day: '', n: 0 };
@@ -658,6 +658,10 @@ async function callLLM(messages, withTools, opt) {
   const providerReady = all.filter(p => (providerCooling.get(p.id) || 0) <= now);
   if (!providerReady.length) throw new Error('All configured model providers are temporarily unavailable. Check provider billing, keys, and rate limits.');
   const live = providerReady.filter(p => (cooling.get(p.name) || 0) <= now);
+  // Do not defeat model cooldowns by retrying every cooling model when all
+  // candidates are temporarily unavailable. The next request can try again
+  // after the cooldown expires; other live providers remain in this chain.
+  if (!live.length) throw new Error('All configured model candidates are temporarily cooling down. Please retry shortly.');
   let last = null;
   for (const p of (live.length ? live : providerReady)) {
     // A provider may be cooled down by an earlier model in this same loop.
@@ -670,6 +674,7 @@ async function callLLM(messages, withTools, opt) {
         if (st === 401 || st === 403) { providerCooling.set(p.id, Date.now() + 10 * 60 * 1000); break; } // provider key/account auth failure
         if (st === 404) { cooling.set(p.name, Date.now() + 10 * 60 * 1000); break; } // unavailable/invalid model: continue to the next model on this provider
         if (st === 429 || st === 413) { cooling.set(p.name, Date.now() + 60000); break; } // rate/token capacity: skip this model briefly
+        if (st === 503) { cooling.set(p.name, Date.now() + 60000); break; } // temporary provider/model demand: immediately try the next model, then retry this one after 60 seconds
         if (st === 400) { cooling.set(p.name, Date.now() + 300000); break; }                 // invalid request/model configuration: avoid repeating it every turn
         if (st && st < 500) { cooling.set(p.name, Date.now() + 600000); break; }             // client-side failure: cool down this model
         if (attempt === 1) cooling.set(p.name, Date.now() + 30000); else await new Promise(r => setTimeout(r, 500));
