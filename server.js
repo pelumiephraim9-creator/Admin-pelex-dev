@@ -564,12 +564,17 @@ Object.assign(CFG, {
   cfModels: String(ENV.CF_MODELS || ENV.CF_MODEL || '@cf/meta/llama-3.3-70b-instruct-fp8-fast,@cf/qwen/qwen2.5-coder-32b-instruct,@cf/deepseek-ai/deepseek-r1-distill-qwen-32b').split(',').map(x => x.trim()).filter(Boolean),
   cfModel: String(ENV.CF_MODELS || ENV.CF_MODEL || '@cf/meta/llama-3.3-70b-instruct-fp8-fast').split(',')[0].trim(),
   mistralKey: ENV.MISTRAL_API_KEY || '', mistralBase: ENV.MISTRAL_BASE || 'https://api.mistral.ai/v1', mistralModel: ENV.MISTRAL_MODEL || 'mistral-large-latest', mistralCodeModel: ENV.MISTRAL_CODE_MODEL || ENV.MISTRAL_MODEL || 'codestral-latest',
-  sambaKey: ENV.SAMBANOVA_API_KEY || '', sambaBase: ENV.SAMBANOVA_BASE || 'https://api.sambanova.ai/v1', sambaModels: String(ENV.SAMBANOVA_MODELS || ENV.SAMBANOVA_MODEL || 'Meta-Llama-3.3-70B-Instruct,Qwen3-32B').split(',').map(x => x.trim()).filter(Boolean), sambaModel: String(ENV.SAMBANOVA_MODELS || ENV.SAMBANOVA_MODEL || 'Meta-Llama-3.3-70B-Instruct').split(',')[0].trim(),
+  sambaKey: ENV.SAMBANOVA_API_KEY || '', sambaBase: ENV.SAMBANOVA_BASE || 'https://api.sambanova.ai/v1',
+  // Keep this list to documented SambaNova model IDs. The old Qwen3-32B ID
+  // returned 404; a 404 should move to the next candidate, while 402 means
+  // the account needs billing and cannot be fixed by rotating model IDs.
+  sambaModels: String(ENV.SAMBANOVA_MODELS || ENV.SAMBANOVA_MODEL || 'Meta-Llama-3.3-70B-Instruct,DeepSeek-V3.1,gpt-oss-120b,DeepSeek-V3.2,gemma-4-31B-it').split(',').map(x => x.trim()).filter(Boolean),
+  sambaModel: String(ENV.SAMBANOVA_MODELS || ENV.SAMBANOVA_MODEL || 'Meta-Llama-3.3-70B-Instruct').split(',')[0].trim(),
   claudeKey: ENV.ANTHROPIC_API_KEY || '', claudeBase: ENV.ANTHROPIC_BASE || 'https://api.anthropic.com', claudeModels: ['claude-haiku-5-5'], claudeModel: 'claude-haiku-5-5', claudeWorkspaceId: ENV.ANTHROPIC_WORKSPACE_ID || '', claudeDaily: +ENV.CLAUDE_DAILY_MAX || 200,
   geminiKey: ENV.GEMINI_API_KEY || '', geminiBase: ENV.GEMINI_BASE || 'https://generativelanguage.googleapis.com/v1beta/openai', geminiModels: String(ENV.GEMINI_MODELS || ENV.GEMINI_MODEL || 'gemini-3.8-flash,gemini-3.5-flash-lite').split(',').map(x => x.trim()).filter(Boolean), geminiModel: String(ENV.GEMINI_MODELS || ENV.GEMINI_MODEL || 'gemini-3.8-flash').split(',')[0].trim(),
   cfBase: ENV.CF_AI_BASE || `https://api.cloudflare.com/client/v4/accounts/${ENV.CF_ACCOUNT_ID || 'x'}/ai/v1`,
 });
-const cooling = new Map(), usage = {}, claudeUse = { day: '', n: 0 };
+const cooling = new Map(), providerCooling = new Map(), usage = {}, claudeUse = { day: '', n: 0 };
 function claudeAllowed() { const d = new Date().toISOString().slice(0, 10); if (claudeUse.day !== d) { claudeUse.day = d; claudeUse.n = 0; } return claudeUse.n < CFG.claudeDaily; }
 function buildProvider(id, task) {
   const code = task === 'coding', vision = task === 'vision', oai = (name, url, key, model, extra) => [{ id, kind: 'openai', name: id + ':' + model, url: url + '/chat/completions', key, model, extra: extra || {} }];
@@ -647,14 +652,21 @@ async function callLLM(messages, withTools, opt) {
   opt = opt || {};
   const all = chain(opt.task || 'general', opt.privacy || 'public').filter(p => p.id !== 'claude' || claudeAllowed());
   if (!all.length) throw new Error('No model key is set on the server.');
-  const live = all.filter(p => (cooling.get(p.name) || 0) <= Date.now());
+  // Provider-level cooldowns prevent trying every model on an account that
+  // has a provider-wide billing/authentication failure (notably SambaNova 402).
+  const now = Date.now();
+  const providerReady = all.filter(p => (providerCooling.get(p.id) || 0) <= now);
+  if (!providerReady.length) throw new Error('All configured model providers are temporarily unavailable. Check provider billing, keys, and rate limits.');
+  const live = providerReady.filter(p => (cooling.get(p.name) || 0) <= now);
   let last = null;
-  for (const p of (live.length ? live : all)) {
+  for (const p of (live.length ? live : providerReady)) {
     for (let attempt = 0; attempt < 2; attempt++) {
       try { const m = await callOne(p, messages, withTools); usage[p.name] = (usage[p.name] || 0) + 1; if (p.id === 'claude') claudeUse.n++; return m; }
       catch (e) {
         last = e; log('model problem:', e.message); const st = e.status;
-        if (st === 401 || st === 403 || st === 404) { cooling.set(p.name, Date.now() + 600000); break; }   // bad key or a model that no longer exists: skip for 10 minutes
+        if (st === 402) { providerCooling.set(p.id, Date.now() + 6 * 60 * 60 * 1000); break; } // billing/payment required: changing model IDs cannot fix this
+        if (st === 401 || st === 403) { providerCooling.set(p.id, Date.now() + 10 * 60 * 1000); break; } // provider key/account auth failure
+        if (st === 404) { cooling.set(p.name, Date.now() + 10 * 60 * 1000); break; } // unavailable/invalid model: continue to the next model on this provider
         if (st === 429 || st === 413) { cooling.set(p.name, Date.now() + 60000); break; } // rate/token capacity: skip this model briefly
         if (st === 400) { cooling.set(p.name, Date.now() + 300000); break; }                 // invalid request/model configuration: avoid repeating it every turn
         if (st && st < 500) { cooling.set(p.name, Date.now() + 600000); break; }             // client-side failure: cool down this model
