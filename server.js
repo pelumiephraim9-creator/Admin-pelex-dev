@@ -568,7 +568,7 @@ Object.assign(CFG, {
   // Keep this list to documented SambaNova model IDs. The old Qwen3-32B ID
   // returned 404; a 404 should move to the next candidate, while 402 means
   // the account needs billing and cannot be fixed by rotating model IDs.
-  sambaModels: [...new Set(String(ENV.SAMBANOVA_MODELS || ENV.SAMBANOVA_MODEL || 'Meta-Llama-3.3-70B-Instruct').split(',').map(x => x.trim()).filter(x => x && x.toLowerCase() !== 'qwen3-32b').concat(['DeepSeek-V3.1', 'gpt-oss-120b', 'DeepSeek-V3.2', 'gemma-4-31B-it']))],
+  sambaModels: String(ENV.SAMBANOVA_MODELS || ENV.SAMBANOVA_MODEL || 'Meta-Llama-3.3-70B-Instruct').split(',').map(x => x.trim()).filter(x => x && x.toLowerCase() !== 'qwen3-32b'),
   sambaModel: String(ENV.SAMBANOVA_MODELS || ENV.SAMBANOVA_MODEL || 'Meta-Llama-3.3-70B-Instruct').split(',')[0].trim(),
   claudeKey: ENV.ANTHROPIC_API_KEY || '', claudeBase: ENV.ANTHROPIC_BASE || 'https://api.anthropic.com', claudeModels: ['claude-haiku-5-5'], claudeModel: 'claude-haiku-5-5', claudeWorkspaceId: ENV.ANTHROPIC_WORKSPACE_ID || '', claudeDaily: +ENV.CLAUDE_DAILY_MAX || 200,
   geminiKey: ENV.GEMINI_API_KEY || '', geminiBase: ENV.GEMINI_BASE || 'https://generativelanguage.googleapis.com/v1beta/openai', geminiModels: String(ENV.GEMINI_MODELS || ENV.GEMINI_MODEL || 'gemini-3.8-flash,gemini-3.5-flash-lite').split(',').map(x => x.trim()).filter(Boolean), geminiModel: String(ENV.GEMINI_MODELS || ENV.GEMINI_MODEL || 'gemini-3.8-flash').split(',')[0].trim(),
