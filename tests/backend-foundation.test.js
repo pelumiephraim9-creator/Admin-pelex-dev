@@ -103,3 +103,35 @@ test('unsupported external channels are not falsely marked delivered', async () 
   assert.ok(failed);
   assert.equal(failed.body.p_max_attempts, 1);
 });
+
+
+test('stale scheduled chat IDs are replaced instead of causing a messages foreign-key failure', async () => {
+  const calls = [];
+  const ctx = {
+    log() {},
+    async sbFetch(path, init = {}) {
+      calls.push({ path, method: init.method || 'GET', body: init.body ? JSON.parse(init.body) : null });
+      if (path.includes('/chats?') && path.includes('id=eq.deleted-chat')) {
+        return { ok: true, async json() { return []; }, async text() { return ''; } };
+      }
+      if (path.includes('/chats?') && path.includes('title=eq.')) {
+        return { ok: true, async json() { return []; }, async text() { return ''; } };
+      }
+      if (path === '/rest/v1/chats' && init.method === 'POST') {
+        return { ok: true, async json() { return [{ id: 'replacement-chat' }]; }, async text() { return ''; } };
+      }
+      if (path.startsWith('/rest/v1/messages?')) {
+        return { ok: true, async json() { return []; }, async text() { return ''; } };
+      }
+      return { ok: true, async json() { return []; }, async text() { return ''; } };
+    }
+  };
+  const result = await scheduler.ensureResultChat(ctx, {
+    id: 'task-stale', user_id: 'user-1', instruction: 'Prepare a report'
+  }, 'A saved report', 'deleted-chat');
+  assert.equal(result.chatId, 'replacement-chat');
+  const messageWrite = calls.find(x => x.path === '/rest/v1/messages' && x.method === 'POST');
+  assert.ok(messageWrite);
+  assert.equal(messageWrite.body[0].chat_id, 'replacement-chat');
+  assert.equal(calls.some(x => x.path.includes('id=eq.deleted-chat') && x.method === 'GET'), true);
+});
