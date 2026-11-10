@@ -571,7 +571,7 @@ Object.assign(CFG, {
   sambaModels: String(ENV.SAMBANOVA_MODELS || ENV.SAMBANOVA_MODEL || 'Meta-Llama-3.3-70B-Instruct').split(',').map(x => x.trim()).filter(x => x && x.toLowerCase() !== 'qwen3-32b'),
   sambaModel: String(ENV.SAMBANOVA_MODELS || ENV.SAMBANOVA_MODEL || 'Meta-Llama-3.3-70B-Instruct').split(',')[0].trim(),
   claudeKey: ENV.ANTHROPIC_API_KEY || '', claudeBase: ENV.ANTHROPIC_BASE || 'https://api.anthropic.com', claudeModels: ['claude-haiku-5-5'], claudeModel: 'claude-haiku-5-5', claudeWorkspaceId: ENV.ANTHROPIC_WORKSPACE_ID || '', claudeDaily: +ENV.CLAUDE_DAILY_MAX || 200,
-  geminiKey: ENV.GEMINI_API_KEY || '', geminiBase: ENV.GEMINI_BASE || 'https://generativelanguage.googleapis.com/v1beta/openai', geminiModels: String(ENV.GEMINI_MODELS || ENV.GEMINI_MODEL || 'gemini-3.8-flash,gemini-3.6-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-2.5-flash-lite').split(',').map(x => x.trim()).filter(Boolean), geminiModel: String(ENV.GEMINI_MODELS || ENV.GEMINI_MODEL || 'gemini-3.8-flash').split(',')[0].trim(),
+  geminiKey: ENV.GEMINI_API_KEY || '', geminiBase: ENV.GEMINI_BASE || 'https://generativelanguage.googleapis.com/v1beta/openai', geminiModels: String(ENV.GEMINI_MODELS || ENV.GEMINI_MODEL || 'gemini-3.8-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite').split(',').map(x => x.trim()).filter(x => x && !/^gemini-2\\./i.test(x)), geminiModel: String(ENV.GEMINI_MODELS || ENV.GEMINI_MODEL || 'gemini-3.8-flash').split(',')[0].trim(),
   cfBase: ENV.CF_AI_BASE || `https://api.cloudflare.com/client/v4/accounts/${ENV.CF_ACCOUNT_ID || 'x'}/ai/v1`,
 });
 const cooling = new Map(), providerCooling = new Map(), usage = {}, claudeUse = { day: '', n: 0 };
