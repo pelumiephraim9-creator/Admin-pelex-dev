@@ -660,6 +660,8 @@ async function callLLM(messages, withTools, opt) {
   const live = providerReady.filter(p => (cooling.get(p.name) || 0) <= now);
   let last = null;
   for (const p of (live.length ? live : providerReady)) {
+    // A provider may be cooled down by an earlier model in this same loop.
+    if ((providerCooling.get(p.id) || 0) > Date.now()) continue;
     for (let attempt = 0; attempt < 2; attempt++) {
       try { const m = await callOne(p, messages, withTools); usage[p.name] = (usage[p.name] || 0) + 1; if (p.id === 'claude') claudeUse.n++; return m; }
       catch (e) {
