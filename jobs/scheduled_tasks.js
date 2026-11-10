@@ -91,6 +91,22 @@ async function ensureResultChat(ctx, row, result, knownChatId = null) {
   const titleQuery = encodeURIComponent(title);
   let chatId = knownChatId || null;
   let created = false;
+
+  // A stored scheduled-chat marker can outlive its chat row (for example, if
+  // the user deleted the chat). Never trust that marker without checking the
+  // owner-scoped row first, otherwise inserting messages raises FK 23503.
+  if (chatId) {
+    const verify = await ctx.sbFetch(
+      `/rest/v1/chats?select=id&user_id=eq.${userId}&id=eq.${encodeURIComponent(chatId)}&limit=1`
+    );
+    if (!verify.ok) throw new Error(`Could not verify the scheduled-result chat (${verify.status}): ${safeText(await verify.text().catch(() => ''), 300)}`);
+    const existing = await verify.json().catch(() => []);
+    if (!Array.isArray(existing) || !existing.some(chat => String(chat.id) === String(chatId))) {
+      ctx.log('scheduled result chat no longer exists; creating a replacement:', row.id, chatId);
+      chatId = null;
+    }
+  }
+
   if (!chatId) {
     const find = await ctx.sbFetch(
       `/rest/v1/chats?select=id&user_id=eq.${userId}&title=eq.${titleQuery}&order=updated_at.desc&limit=1`
@@ -158,15 +174,40 @@ async function repairDeliveredScheduledChats(ctx) {
   if (!r.ok) throw new Error(`Could not scan delivered scheduled tasks for chat repair (${r.status}).`);
   const rows = await r.json().catch(() => []);
   let repaired = 0;
+  let failures = 0;
   for (const row of Array.isArray(rows) ? rows : []) {
     const match = String(row.last_result || '').match(/<!--pelex-scheduled-chat:([0-9a-f-]{20,})-->/i);
     if (!match || !row.user_id || String(row.channel || 'website').toLowerCase() !== 'website') continue;
     const result = String(row.last_result).replace(/\n?\n?<!--pelex-scheduled-chat:[0-9a-f-]{20,}-->/ig, '').trim();
     if (!result) continue;
-    await ensureResultChat(ctx, row, result, match[1]);
-    repaired++;
+    try {
+      const chat = await ensureResultChat(ctx, row, result, match[1]);
+      // Persist the replacement ID in the completed task itself. This restores
+      // the frontend deep-link/card target and prevents the stale ID returning
+      // on every future recovery pass.
+      if (String(chat.chatId) !== String(match[1])) {
+        const updatedResult = String(row.last_result).replace(
+          match[0],
+          '<!--pelex-scheduled-chat:' + chat.chatId + '-->'
+        );
+        const update = await ctx.sbFetch(
+          `/rest/v1/scheduled_tasks?id=eq.${encodeURIComponent(row.id)}&delivered_at=not.is.null`,
+          {
+            method: 'PATCH',
+            headers: { Prefer: 'return=minimal' },
+            body: JSON.stringify({ last_result: updatedResult })
+          }
+        );
+        if (!update.ok) throw new Error(`Could not save the replacement scheduled-chat ID (${update.status}).`);
+      }
+      repaired++;
+    } catch (rowErr) {
+      failures++;
+      ctx.log('scheduled chat recovery skipped task:', row.id, rowErr.message);
+    }
   }
   if (repaired) ctx.log('scheduled chat recovery checked:', repaired, 'delivered results');
+  if (failures) throw new Error(`${failures} delivered scheduled chat(s) still need recovery; retry will be backoff-limited.`);
 }
 
 async function deliver(ctx, row, result) {
@@ -276,9 +317,16 @@ async function tick(ctx) {
   if (running || !ctx.sbOn()) return;
   running = true;
   try {
-    if (!ctx._scheduledChatRepairDone) {
-      try { await repairDeliveredScheduledChats(ctx); ctx._scheduledChatRepairDone = true; }
-      catch (repairErr) { ctx.log('scheduled chat recovery deferred:', repairErr.message); }
+    if (!ctx._scheduledChatRepairDone && Date.now() >= (ctx._scheduledChatRepairNextAt || 0)) {
+      try {
+        await repairDeliveredScheduledChats(ctx);
+        ctx._scheduledChatRepairDone = true;
+      } catch (repairErr) {
+        // Do not let one stale/deleted chat trigger a full recovery scan every
+        // 30 seconds. Retry recovery at most once every five minutes.
+        ctx._scheduledChatRepairNextAt = Date.now() + 5 * 60 * 1000;
+        ctx.log('scheduled chat recovery deferred (next retry in 5 minutes):', repairErr.message);
+      }
     }
     const rows = await rpc(ctx, 'claim_due_scheduled_tasks_v2', { p_limit: 3, p_lock_seconds: 300 });
     if (ctx.COMMANDS && typeof ctx.COMMANDS.setFeature === 'function') ctx.COMMANDS.setFeature('scheduled', true);
@@ -296,6 +344,8 @@ module.exports = {
   name: 'scheduled_tasks',
   tick,
   processTask,
+  ensureResultChat,
+  repairDeliveredScheduledChats,
   start(ctx) {
     if (!ctx.sbOn()) { ctx.log('scheduler not started: Supabase is not configured'); return; }
     const timer = setInterval(() => tick(ctx), 30000);
