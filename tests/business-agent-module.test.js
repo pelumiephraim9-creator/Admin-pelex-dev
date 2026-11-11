@@ -96,6 +96,14 @@ test('Fashion is a first-class business type with its own retail dashboard metri
   assert.match(migration, /'fashion','Fashion and clothing retail'/);
   assert.match(migration, /'sales','inventory','orders','payables','receivables','reports'/);
   assert.match(migration, /when 'fashion' then business_metrics/);
+  const orderMetrics = fs.readFileSync(
+    'supabase/migrations/20261111203553_fashion_order_revenue_and_refund_metrics.sql',
+    'utf8'
+  );
+  assert.match(orderMetrics, /'order_revenue'/);
+  assert.match(orderMetrics, /'order_refunds'/);
+  assert.match(orderMetrics, /'net_order_revenue'/);
+
   for (const metric of [
     'sales_revenue', 'refunds', 'discounts',
     'net_sales_after_refunds_and_discounts', 'cost_of_goods_recorded',
