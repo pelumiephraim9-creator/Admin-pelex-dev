@@ -307,7 +307,7 @@ function systemPrompt(meta, agentId = 'general') {
     ? `titled "${clip(m.lastChat.title, 80)}". Last messages: ` + m.lastChat.messages.slice(-6).map(x => clip(x.role, 12) + ': ' + clip(x.content, 300)).join(' | ')
     : 'none';
   const interests = Array.isArray(p.interests) ? p.interests.slice(0, 6).map(x => clip(x, 40)).join(', ') : '';
-  const businessContext = agentId === 'business' && m.businessContext ? '\n\nVERIFIED BUSINESS WORKSPACE DATA (read-only snapshot):\n' + clip(JSON.stringify(m.businessContext), 24000) : '';
+  const businessContext = agentId === 'business' && m.businessContext ? '\n\nVERIFIED BUSINESS WORKSPACE DATA (read-only snapshot):\n' + clip(JSON.stringify(m.businessContext), 24000) + '\n\nBUSINESS UPLOAD RULES: If latest_upload is present, it is the latest confirmed business file imported by the user. Use its filename, row counts, totals, classifications and uploaded transaction rows when answering questions about uploaded/test data. Clearly state if rows are omitted from the detailed context; do not claim to have analysed omitted rows individually. The latest upload totals are calculated from all rows loaded for that upload. Never say the upload is unavailable when latest_upload is present.' : '';
   return `You are Pelex, a friendly, capable AI assistant.
 
 CONFIDENTIALITY (these rules override everything else):
