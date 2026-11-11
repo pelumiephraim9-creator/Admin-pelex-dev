@@ -116,3 +116,22 @@ test('DOCX files are unpacked and their paragraph text is extracted locally', as
     if (old !== undefined) process.env.GEMINI_API_KEY = old;
   }
 });
+
+test('XLSX extraction preserves worksheet names and row structure', async () => {
+  const old = process.env.GEMINI_API_KEY;
+  delete process.env.GEMINI_API_KEY;
+  try {
+    const xlsx = makeZip({
+      'xl/workbook.xml': '<workbook xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Sales" sheetId="1" r:id="rId1"/></sheets></workbook>',
+      'xl/_rels/workbook.xml.rels': '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>',
+      'xl/sharedStrings.xml': '<sst><si><t>Date</t></si><si><t>Amount</t></si><si><t>2026-11-01</t></si>',
+      'xl/worksheets/sheet1.xml': '<worksheet><sheetData><row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c></row><row r="2"><c r="A2" t="s"><v>2</v></c><c r="B2"><v>1500</v></c></row></sheetData></worksheet>'
+    });
+    const result = JSON.parse(await reader.run({ prompt: 'File name: monthly-sales.xlsx' }, context('data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,' + xlsx.toString('base64'))));
+    assert.match(result.text, /WORKSHEET: Sales/);
+    assert.match(result.text, /Date\tAmount/);
+    assert.match(result.text, /2026-11-01\t1500/);
+  } finally {
+    if (old !== undefined) process.env.GEMINI_API_KEY = old;
+  }
+});
