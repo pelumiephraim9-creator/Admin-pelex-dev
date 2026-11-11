@@ -771,7 +771,16 @@ async function runTool(name, args, run) {
    A provider with no key is skipped. A failing provider cools off for a while so the next message does not wait on it. */
 const PRIVATE_OK = new Set((ENV.PRIVATE_PROVIDERS || 'groq,cloudflare,sambanova,claude').split(',').map(x => x.trim()).filter(Boolean));
 const DEFAULT_ROUTES = { general: 'groq,openrouter,nvidia,cloudflare,gemini,sambanova,claude', coding: 'gemini,groq,nvidia,openrouter,sambanova,cloudflare,claude', data: 'sambanova,groq,nvidia,gemini,openrouter,cloudflare,claude', vision: 'gemini,openrouter,claude' };
-const routeOf = task => String(ENV['ROUTE_' + String(task).toUpperCase()] || DEFAULT_ROUTES[task] || DEFAULT_ROUTES.general).split(',').map(x => x.trim()).filter(Boolean);
+const routeOf = task => {
+  const configured = String(ENV['ROUTE_' + String(task).toUpperCase()] || DEFAULT_ROUTES[task] || DEFAULT_ROUTES.general)
+    .split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
+  // A custom route changes priority, not the size of the safety net.
+  // Append every default candidate so a short environment override cannot
+  // accidentally make Pelex stop after only Groq/Gemini.
+  const defaults = String(DEFAULT_ROUTES[task] || DEFAULT_ROUTES.general)
+    .split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
+  return [...new Set([...configured, ...defaults])];
+};
 Object.assign(CFG, {
   cfModels: String(ENV.CF_MODELS || ENV.CF_MODEL || '@cf/meta/llama-3.3-70b-instruct-fp8-fast,@cf/qwen/qwen2.5-coder-32b-instruct,@cf/deepseek-ai/deepseek-r1-distill-qwen-32b').split(',').map(x => x.trim()).filter(Boolean),
   cfModel: String(ENV.CF_MODELS || ENV.CF_MODEL || '@cf/meta/llama-3.3-70b-instruct-fp8-fast').split(',')[0].trim(),
