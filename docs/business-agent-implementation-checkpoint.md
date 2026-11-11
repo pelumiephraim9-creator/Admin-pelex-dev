@@ -94,3 +94,26 @@ Added regression tests for project-scoped transaction reads, anonymous RPC permi
 - Do not overwrite unrelated code or data.
 - Do not recreate the cleared test workspace.
 - Do not mark the Business Agent complete based only on migrations or commits. Completion requires successful CI and end-to-end checks across the supported business types.
+
+
+## Frontend audit follow-up — 2026-11-11
+
+The Business Agent setup/dashboard frontend was re-audited after reports that the business type selector was blank and the volume/pie charts were not visible.
+
+### Corrections committed to frontend main
+
+- The business type catalogue is loaded independently of workspace creation and sign-in state (the catalogue has a public-read policy and currently contains 18 supported business types). This prevents a blank type selector for a new account or an account without a workspace.
+- The project setup card is mounted directly inside Business Agent immediately after the Workspace & team access card. Its insertion anchor uses the stable workspace body element, not a heading label, so copy changes cannot move the setup card above/below the wrong section.
+- Workspace is explicitly described as a team container; individual businesses are created as separate business projects below it.
+- Project create and edit now use the same validated `save_setup_project_v3` RPC. It checks authenticated workspace edit access, duplicate names, and prevents changing business type/currency after records exist.
+- Monthly dashboard charts now include transaction volume, transaction mix and operational activity mix. Ledger chart data is fetched through `business_list_transactions` with both workspace and selected project IDs plus the selected reporting-month date range. Operational mix comes from the selected-project dashboard summary. No workspace-wide chart fallback is used.
+- Empty states are shown before a project is selected or when a project has no activity. Month-end calculations use local calendar dates to avoid UTC+ timezone shifts.
+- The old workspace-wide setup card remains retired; external duplicate Project Management/Data Entry navigation remains removed.
+
+### Remaining verification (not yet complete)
+
+- The static frontend has been committed to GitHub main, but live Netlify deployment and browser-based create/edit/project-switch/chart rendering have not yet been confirmed. GitHub combined commit status returned no status entries; do not report CI as passing.
+- The operational entry form still needs a full business-type-specific field/validation UX pass beyond the currently supported module and record-type rules.
+- File extraction/import still requires end-to-end PDF, image, spreadsheet and office-document tests.
+- Project-level membership roles remain outstanding; workspace membership currently governs access to sibling projects.
+- Do not create test data in the cleared production workspace. Use an isolated test environment for end-to-end tests.
