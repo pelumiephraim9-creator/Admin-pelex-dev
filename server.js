@@ -415,7 +415,6 @@ async function loadBusinessContext(userId, workspaceId, projectId, periodMonth) 
     member_role: membership[0].role,
     selected_project: selected,
     business_type_definition: businessTypeDefinition,
-    available_projects: projects.map(p => ({ id: p.id, name: p.name, currency: p.currency, business_type: p.business_type })),
     reporting_currency: selected.currency,
     selected_period: {
       month: selectedMonth,
