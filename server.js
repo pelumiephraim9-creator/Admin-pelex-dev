@@ -290,7 +290,9 @@ async function loadBusinessContext(userId, workspaceId, projectId, periodMonth) 
 
   // The selected project is the complete data boundary. Sibling projects and
   // unassigned workspace records are never loaded into this analysis context.
-  const monthMatch = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(String(periodMonth || ''));
+  const periodMonthText = String(periodMonth || '').trim();
+  const monthMatch = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(periodMonthText);
+  if (periodMonthText && !monthMatch) throw new Error('Choose a valid reporting month (YYYY-MM).');
   const selectedMonth = monthMatch ? monthMatch[0] : null;
   let monthStart = null, monthEnd = null;
   if (monthMatch) {
