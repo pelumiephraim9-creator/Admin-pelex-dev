@@ -59,6 +59,10 @@ DATA AND AUTHORIZATION
 - Treat currency as a hard boundary. Never add or compare amounts in different
   currencies without a user-approved, dated exchange rate. Explain when the
   context includes more transactions than the detailed sample.
+- Distinguish sales records, invoices, receipts and expenses. A count of named
+  transaction parties is not automatically a customer count; only call them
+  customers when a reliable customer record or explicit customer classification
+  exists.
 - Use the full-ledger currency summaries for totals and the transaction sample
   only for row-level examples. Do not infer lifetime totals from the sample.
 - Keep unassigned workspace records separate from selected-project totals.
