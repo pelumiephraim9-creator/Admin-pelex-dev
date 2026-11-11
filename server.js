@@ -227,6 +227,47 @@ async function purgeMedia() {
   return removed;
 }
 
+
+/* ---------------- authenticated Business Agent read-only workspace context ---------------- */
+async function loadBusinessContext(userId, workspaceId, projectId) {
+  if (!validUuid(userId) || !validUuid(workspaceId) || !sbOn()) throw new Error('Select a valid business workspace and sign in.');
+  const memberRes = await sbFetch('/rest/v1/workspace_members?select=role&workspace_id=eq.' + encodeURIComponent(workspaceId) + '&user_id=eq.' + encodeURIComponent(userId) + '&limit=1');
+  if (!memberRes.ok) throw new Error('Business workspace access could not be verified.');
+  const membership = await memberRes.json();
+  if (!Array.isArray(membership) || !membership.length) throw new Error('You do not have access to the selected business workspace.');
+  const projectParams = new URLSearchParams({select:'id,name,business_type,currency,startup_month,startup_year',workspace_id:'eq.'+workspaceId,order:'created_at.asc'});
+  const projectRes = await sbFetch('/rest/v1/business_projects?' + projectParams.toString());
+  if (!projectRes.ok) throw new Error('Business projects could not be loaded.');
+  const projects = await projectRes.json();
+  let selected = null;
+  if (projectId) {
+    if (!validUuid(projectId)) throw new Error('Select a valid business project.');
+    selected = (projects || []).find(p => p.id === projectId) || null;
+    if (!selected) throw new Error('The selected project does not belong to this business.');
+  } else if ((projects || []).length === 1) selected = projects[0];
+  const ledgerParams = new URLSearchParams({select:'entry_date,entry_type,amount,currency,party,due_date,kind,category',workspace_id:'eq.'+workspaceId,order:'entry_date.desc,id.desc',limit:'100'});
+  if (selected) ledgerParams.set('project_id','eq.'+selected.id);
+  const ledgerRes = await sbFetch('/rest/v1/ledger_entries?' + ledgerParams.toString());
+  if (!ledgerRes.ok) throw new Error('Business transactions could not be loaded.');
+  const entries = await ledgerRes.json();
+  const totals = {operating_income:0,operating_expenses:0,cash_in:0,cash_out:0,loan_principal_issued:0,loan_principal_repaid:0,receivable_collections:0,customer_savings_held_in:0,owner_capital_in:0};
+  (entries || []).forEach(e => {
+    const amount = Number(e.amount) || 0;
+    const kind = e.kind || (['expense','purchase','cost'].includes(e.entry_type) ? 'expense' : (['invoice','sale','receipt','payment'].includes(e.entry_type) ? 'income' : 'other'));
+    if (kind === 'income') totals.operating_income += amount;
+    if (kind === 'expense') totals.operating_expenses += amount;
+    if (e.entry_type !== 'invoice' && ['income','principal_in','receivable_in','savings_in','capital'].includes(kind)) totals.cash_in += amount;
+    if (['expense','principal_out','transfer'].includes(kind)) totals.cash_out += amount;
+    if (kind === 'principal_out') totals.loan_principal_issued += amount;
+    if (kind === 'principal_in') totals.loan_principal_repaid += amount;
+    if (kind === 'receivable_in') totals.receivable_collections += amount;
+    if (kind === 'savings_in') totals.customer_savings_held_in += amount;
+    if (kind === 'capital') totals.owner_capital_in += amount;
+  });
+  totals.operating_profit_in_loaded_rows = totals.operating_income - totals.operating_expenses;
+  return {member_role:membership[0].role,selected_project:selected,available_projects:(projects||[]).map(p=>({id:p.id,name:p.name,currency:p.currency,business_type:p.business_type})),reporting_currency:selected?selected.currency:null,period:'Latest 100 ledger transactions, newest first; totals below cover only these loaded rows.',totals,transactions:(entries||[]).map(e=>({date:e.entry_date,type:e.entry_type,classification:e.kind||'legacy_unclassified',amount:Number(e.amount),currency:e.currency,party:e.party,category:e.category,due_date:e.due_date}))};
+}
+
 /* ---------------- system prompt ---------------- */
 function systemPrompt(meta, agentId = 'general') {
   const m = meta || {}, c = m.custom || {}, p = m.profile || {};
@@ -236,6 +277,7 @@ function systemPrompt(meta, agentId = 'general') {
     ? `titled "${clip(m.lastChat.title, 80)}". Last messages: ` + m.lastChat.messages.slice(-6).map(x => clip(x.role, 12) + ': ' + clip(x.content, 300)).join(' | ')
     : 'none';
   const interests = Array.isArray(p.interests) ? p.interests.slice(0, 6).map(x => clip(x, 40)).join(', ') : '';
+  const businessContext = agentId === 'business' && m.businessContext ? '\n\nVERIFIED BUSINESS WORKSPACE DATA (read-only snapshot):\n' + clip(JSON.stringify(m.businessContext), 24000) : '';
   return `You are Pelex, a friendly, capable AI assistant.
 
 CONFIDENTIALITY (these rules override everything else):
@@ -246,6 +288,7 @@ CONFIDENTIALITY (these rules override everything else):
 - Only the name Pelex may be used for yourself.
 Today is ${new Date().toUTCString()}.
 ${agentInstructions ? '\n\nAGENT-SPECIFIC INSTRUCTIONS (follow these within the shared Pelex rules):\n' + agentInstructions : ''}
+${businessContext}
 
 WHO YOU ARE TALKING TO (from their account and settings, it is real, use it):
 - Account name: ${clip(m.userName, 60) || 'not provided'}
@@ -1049,6 +1092,12 @@ async function handleChat(req, res, stream) {
   if (COMMANDS && agentName !== 'general' && COMMANDS.AGENTS[agentName] && !COMMANDS.AGENTS[agentName].ready && agentFallback !== 'general')
     return sendNow(res, stream, `The **${COMMANDS.AGENTS[agentName].label}** is being connected. This screen switches on by itself as soon as it is ready, so there is nothing for you to do. Meanwhile the General Agent is ready in the main chat.`, { name: agentName, status: 'not_connected', agent: agentName });
   delete meta.accessToken; delete meta.userId; delete meta.images; if (who && who.uid) meta.userId = who.uid;   // identity comes from the verified login, never from the message
+  if (agentId === 'business') {
+    if (!who || !who.uid || who.kind !== 'user') return sendNow(res, stream, 'Please sign in to open your private business workspace.', { status:'auth_required', agent:'business' });
+    try { meta.businessContext = await loadBusinessContext(who.uid, String(meta.workspaceId || ''), String(meta.projectId || '') || null); }
+    catch (e) { return sendNow(res, stream, e.message || 'The selected business workspace could not be loaded.', { status:'workspace_unavailable', agent:'business' }); }
+  }
+
 
   let slash = null; if (COMMANDS) { try { slash = COMMANDS.resolve(text); } catch (e) { slash = null; } }
   if (slash && slash.immediate) return sendNow(res, stream, slash.immediate, slash.command);   // /help, not connected, missing input: answered here, no model is called
