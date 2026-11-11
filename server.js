@@ -1233,7 +1233,7 @@ async function handleChat(req, res, stream) {
   const rawImgs = body.metadata && Array.isArray(body.metadata.images) ? body.metadata.images : [];
   // PDF documents use the same secure extract intent as image uploads.
   // Keep the total encoded payload within the request-body limit.
-  const images = rawImgs.slice(0, 6).filter(u => typeof u === 'string' && u.length < 14000000 && /^data:(?:image\/(png|jpeg|webp|gif|heic|heif|tiff?)|application\/(?:pdf|rtf|json|xml|msword|vnd\.ms-excel|vnd\.ms-powerpoint|vnd\.openxmlformats-officedocument\.(?:wordprocessingml\.document|spreadsheetml\.(?:sheet|sheet\.macroEnabled\.12)|presentationml\.presentation)|vnd\.oasis\.opendocument\.(?:text|spreadsheet|presentation)|octet-stream)|text\/(?:plain|csv|tab-separated-values|markdown|html|xml|rtf));base64,[A-Za-z0-9+/=]+$/i.test(u));
+  const images = rawImgs.slice(0, 6).filter(u => typeof u === 'string' && u.length < 14000000 && /^data:(?:image\/(png|jpeg|webp|gif|heic|heif|tiff?)|application\/(?:pdf|rtf|json|xml|msword|vnd\.ms-excel(?:\.sheet\.macroEnabled\.12)?|vnd\.ms-powerpoint|vnd\.openxmlformats-officedocument\.(?:wordprocessingml\.document|spreadsheetml\.(?:sheet|sheet\.macroEnabled\.12)|presentationml\.presentation)|vnd\.oasis\.opendocument\.(?:text|spreadsheet|presentation)|octet-stream)|text\/(?:plain|csv|tab-separated-values|markdown|html|xml|rtf));base64,[A-Za-z0-9+/=]+$/i.test(u));
   if (!text) return send(res, 400, { error: 'Empty message.' });
   if (images.reduce((n, u) => n + u.length, 0) > 13500000) return send(res, 413, { error: 'The uploaded files are too large. Try a smaller PDF or fewer images.' });
   const sid = cleanSid(body.sessionId);
