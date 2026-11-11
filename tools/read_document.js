@@ -70,7 +70,7 @@ module.exports={
    const imgs=Array.isArray(ctx&&ctx.images)?ctx.images:[];if(!imgs.length)return fail('No document attachment was received.');
    const a=attachment(imgs[0]),name=(String(args&&args.prompt||'').match(/(?:file name|filename)\s*:\s*([^\r\n]+)/i)||[])[1]||'',ext=(name.split('.').pop()||'').toLowerCase(),mime=a.mime==='image/jpg'?'image/jpeg':a.mime;
    let extracted=null;
-   if(['docx','pptx','xlsx','xlsm','odt','ods'].includes(ext))extracted=office(ext,a.bytes);
+   const officeExt=['docm','dotx','dotm'].includes(ext)?'docx':['pptm','ppsx'].includes(ext)?'pptx':ext;if(['docx','pptx','xlsx','xlsm','odt','ods','odp'].includes(officeExt))extracted=office(officeExt,a.bytes);
    else if(['csv','tsv','txt','md','json','xml','html','htm','rtf','log'].includes(ext)){
     let t=a.bytes.toString('utf8').replace(/^\uFEFF/,'');if(ext==='html'||ext==='htm')t=strip(t);else if(ext==='xml')t=strip(t);else if(ext==='rtf')t=t.replace(/\\par[d]?/g,'\n').replace(/\\[a-zA-Z]+-?\d* ?/g,'').replace(/[{}]/g,'');
     extracted={text:t,sections:[ext.toUpperCase()+' document']};
