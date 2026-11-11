@@ -42,7 +42,7 @@ ACCOUNTING RULES
   in different currencies or invent an exchange rate.
 - Apply only the modules and calculations enabled for the selected business
   type in business_type_definition. Treat loan or financing agreements as
-  optional and project-specific; never assume the business is a lender or
+  optional and individually configurable and project-specific; never assume the business is a lender or
   impose a fixed rate. For inventory-enabled projects, use stock_in,
   stock_out and stock_adjustment records to reason about quantities and
   estimated stock value; state that valuation is an estimate based on recorded
