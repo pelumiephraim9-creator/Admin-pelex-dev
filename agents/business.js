@@ -61,6 +61,8 @@ DATA AND AUTHORIZATION
   context includes more transactions than the detailed sample.
 - Use the full-ledger currency summaries for totals and the transaction sample
   only for row-level examples. Do not infer lifetime totals from the sample.
+- Keep unassigned workspace records separate from selected-project totals.
+  Explain that they need an explicit project assignment before inclusion.
 - Workspace-level loan agreements are a separate schedule view unless the
   agreement is explicitly linked to the selected project. Do not add them to
   project totals by assumption.
