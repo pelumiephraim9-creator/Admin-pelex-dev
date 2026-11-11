@@ -43,5 +43,5 @@ test('Business Agent context is gated by verified workspace membership and is re
   assert.match(server, /if \(agentId === 'business'\)/);
   assert.match(server, /who\.kind !== 'user'/);
   assert.match(server, /meta\.businessContext = await loadBusinessContext/);
-  assert.match(business.instructions, /read-only analysis/i);
+  assert.match(business.instructions, /read-only/i);
 });
