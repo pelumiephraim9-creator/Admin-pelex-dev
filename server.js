@@ -245,11 +245,41 @@ async function loadBusinessContext(userId, workspaceId, projectId) {
     selected = (projects || []).find(p => p.id === projectId) || null;
     if (!selected) throw new Error('The selected project does not belong to this business.');
   } else if ((projects || []).length === 1) selected = projects[0];
-  const ledgerParams = new URLSearchParams({select:'entry_date,entry_type,amount,currency,party,due_date,kind,category',workspace_id:'eq.'+workspaceId,order:'entry_date.desc,id.desc',limit:'100'});
+  const ledgerParams = new URLSearchParams({select:'entry_date,entry_type,amount,currency,party,due_date,kind,category,project_id,upload_id',workspace_id:'eq.'+workspaceId,order:'entry_date.desc,id.desc',limit:'40'});
   if (selected) ledgerParams.set('project_id','eq.'+selected.id);
   const ledgerRes = await sbFetch('/rest/v1/ledger_entries?' + ledgerParams.toString());
   if (!ledgerRes.ok) throw new Error('Business transactions could not be loaded.');
   const entries = await ledgerRes.json();
+
+  // Always include the latest confirmed upload as a separate dataset, not only
+  // the most recent 40 general ledger rows. This lets Business Agent inspect a
+  // newly imported sales sheet even when the workspace already has many entries.
+  const uploadParams = new URLSearchParams({select:'id,file_name,detected_type,confidence,currency,created_at',workspace_id:'eq.'+workspaceId,status:'eq.confirmed',deleted_at:'is.null',order:'created_at.desc',limit:'1'});
+  const uploadRes = await sbFetch('/rest/v1/uploads?' + uploadParams.toString());
+  if (!uploadRes.ok) throw new Error('Uploaded business files could not be loaded.');
+  const uploads = await uploadRes.json();
+  let latestUpload = null;
+  if (Array.isArray(uploads) && uploads.length) {
+    const u = uploads[0];
+    const uploadLedgerParams = new URLSearchParams({select:'entry_date,entry_type,amount,currency,party,due_date,kind,category,project_id',workspace_id:'eq.'+workspaceId,upload_id:'eq.'+u.id,order:'entry_date.asc,id.asc',limit:'1000'});
+    if (selected) uploadLedgerParams.set('project_id','eq.'+selected.id);
+    const uploadLedgerRes = await sbFetch('/rest/v1/ledger_entries?' + uploadLedgerParams.toString());
+    if (!uploadLedgerRes.ok) throw new Error('The latest uploaded dataset could not be read.');
+    const uploadedRows = await uploadLedgerRes.json();
+    const uploadTotals = {row_count:uploadedRows.length,operating_income:0,operating_expenses:0,cash_in:0,cash_out:0,by_type:{}};
+    uploadedRows.forEach(e => {
+      const amount = Number(e.amount) || 0;
+      const kind = e.kind || (['expense','purchase','cost'].includes(e.entry_type) ? 'expense' : (['invoice','sale','receipt','payment'].includes(e.entry_type) ? 'income' : 'other'));
+      uploadTotals.by_type[e.entry_type] = (uploadTotals.by_type[e.entry_type] || 0) + 1;
+      if (kind === 'income') uploadTotals.operating_income += amount;
+      if (kind === 'expense') uploadTotals.operating_expenses += amount;
+      if (e.entry_type !== 'invoice' && ['income','principal_in','receivable_in','savings_in','capital'].includes(kind)) uploadTotals.cash_in += amount;
+      if (['expense','principal_out','transfer'].includes(kind)) uploadTotals.cash_out += amount;
+    });
+    uploadTotals.operating_profit = uploadTotals.operating_income - uploadTotals.operating_expenses;
+    latestUpload = {file_name:u.file_name,detected_type:u.detected_type,confidence:u.confidence,currency:u.currency,uploaded_at:u.created_at,rows_loaded:uploadedRows.length,rows_in_context:Math.min(uploadedRows.length,150),rows_omitted:Math.max(0,uploadedRows.length-150),totals:uploadTotals,transactions:uploadedRows.slice(0,150).map(e=>({date:e.entry_date,type:e.entry_type,classification:e.kind||'legacy_unclassified',amount:Number(e.amount),currency:e.currency,party:e.party,category:e.category,due_date:e.due_date,project_id:e.project_id}))};
+  }
+
   const totals = {operating_income:0,operating_expenses:0,cash_in:0,cash_out:0,loan_principal_issued:0,loan_principal_repaid:0,receivable_collections:0,customer_savings_held_in:0,owner_capital_in:0};
   (entries || []).forEach(e => {
     const amount = Number(e.amount) || 0;
@@ -265,7 +295,7 @@ async function loadBusinessContext(userId, workspaceId, projectId) {
     if (kind === 'capital') totals.owner_capital_in += amount;
   });
   totals.operating_profit_in_loaded_rows = totals.operating_income - totals.operating_expenses;
-  return {member_role:membership[0].role,selected_project:selected,available_projects:(projects||[]).map(p=>({id:p.id,name:p.name,currency:p.currency,business_type:p.business_type})),reporting_currency:selected?selected.currency:null,period:'Latest 100 ledger transactions, newest first; totals below cover only these loaded rows.',totals,transactions:(entries||[]).map(e=>({date:e.entry_date,type:e.entry_type,classification:e.kind||'legacy_unclassified',amount:Number(e.amount),currency:e.currency,party:e.party,category:e.category,due_date:e.due_date}))};
+  return {member_role:membership[0].role,selected_project:selected,available_projects:(projects||[]).map(p=>({id:p.id,name:p.name,currency:p.currency,business_type:p.business_type})),reporting_currency:selected?selected.currency:null,period:'Latest 40 general ledger transactions, newest first; the separate latest uploaded dataset contains up to 1,000 imported rows, with up to 150 rows included for detailed inspection.',totals,latest_upload:latestUpload,transactions:(entries||[]).map(e=>({date:e.entry_date,type:e.entry_type,classification:e.kind||'legacy_unclassified',amount:Number(e.amount),currency:e.currency,party:e.party,category:e.category,due_date:e.due_date,project_id:e.project_id,upload_id:e.upload_id}))};
 }
 
 /* ---------------- system prompt ---------------- */
