@@ -1,0 +1,27 @@
+name: Business Agent backend checks
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server.js'
+      - 'agents/business.js'
+      - 'tests/business-agent-module.test.js'
+      - '.github/workflows/business-agent-check.yml'
+      - 'supabase/migrations/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'server.js'
+      - 'agents/business.js'
+      - 'tests/business-agent-module.test.js'
+      - '.github/workflows/business-agent-check.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node --check server.js
+      - run: node --test tests/business-agent-module.test.js
