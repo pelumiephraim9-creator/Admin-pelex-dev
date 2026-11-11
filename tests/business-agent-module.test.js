@@ -62,3 +62,28 @@ test('legacy receipts are not assumed to be new operating revenue', () => {
   assert.match(server, /e\.kind == null && e\.entry_type === 'receipt'/);
   assert.match(business.instructions, /legacy receipt with no explicit accounting kind/i);
 });
+
+test('Business Agent transaction reads cannot fall back to workspace-wide portfolio data', () => {
+  const migration = fs.readFileSync(
+    'supabase/migrations/20261111202822_require_project_scoped_business_transaction_reads.sql',
+    'utf8'
+  );
+  assert.match(migration, /IF p_project IS NULL THEN[\s\S]*?RAISE EXCEPTION/i);
+  assert.match(migration, /le\.project_id = p_project/i);
+  assert.match(migration, /le\.workspace_id = p_workspace/i);
+  assert.match(migration, /REVOKE ALL ON FUNCTION public\.business_list_transactions[\s\S]*?FROM PUBLIC, anon/i);
+});
+
+test('Business Agent project mutation and approval RPCs are not anonymously executable', () => {
+  const migration = fs.readFileSync(
+    'supabase/migrations/20261111202806_business_agent_project_rpc_permissions.sql',
+    'utf8'
+  );
+  for (const fn of [
+    'add_slip', 'agreements_for_project_month', 'create_agreement_for_project',
+    'create_business', 'decide_agent_action', 'delete_upload',
+    'restore_upload', 'request_agent_action'
+  ]) {
+    assert.match(migration, new RegExp('REVOKE ALL ON FUNCTION public\\.' + fn + '[\\s\\S]*?FROM PUBLIC, anon', 'i'));
+  }
+});
