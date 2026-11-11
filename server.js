@@ -268,6 +268,17 @@ async function loadBusinessContext(userId, workspaceId, projectId, periodMonth) 
     throw new Error('You have more than one project. Select the project you want the Business Agent to analyse first.');
   }
 
+  const typeParams = new URLSearchParams({
+    select: 'code,name,group_name,description,modules,fields,default_cycle',
+    code: 'eq.' + selected.business_type,
+    limit: '1'
+  });
+  const typeRes = await sbFetch('/rest/v1/business_types?' + typeParams.toString());
+  if (!typeRes.ok) throw new Error('The selected business type configuration could not be loaded.');
+  const typeRows = await typeRes.json();
+  if (!Array.isArray(typeRows) || !typeRows.length) throw new Error('The selected project uses an unsupported business type.');
+  const businessTypeDefinition = typeRows[0];
+
   const ledgerParams = new URLSearchParams({
     select: 'id,entry_date,entry_type,amount,currency,party,due_date,kind,category,project_id,upload_id,source_key,created_at',
     workspace_id: 'eq.' + workspaceId,
@@ -401,6 +412,7 @@ async function loadBusinessContext(userId, workspaceId, projectId, periodMonth) 
   return {
     member_role: membership[0].role,
     selected_project: selected,
+    business_type_definition: businessTypeDefinition,
     available_projects: projects.map(p => ({ id: p.id, name: p.name, currency: p.currency, business_type: p.business_type })),
     reporting_currency: selected.currency,
     selected_period: {
