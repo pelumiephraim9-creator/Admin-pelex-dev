@@ -1093,7 +1093,9 @@ async function handleChat(req, res, stream) {
     return sendNow(res, stream, `The **${COMMANDS.AGENTS[agentName].label}** is being connected. This screen switches on by itself as soon as it is ready, so there is nothing for you to do. Meanwhile the General Agent is ready in the main chat.`, { name: agentName, status: 'not_connected', agent: agentName });
   delete meta.accessToken; delete meta.userId; delete meta.images; if (who && who.uid) meta.userId = who.uid;   // identity comes from the verified login, never from the message
   if (agentId === 'business') {
+    if (!who) who = await identify(req);
     if (!who || !who.uid || who.kind !== 'user') return sendNow(res, stream, 'Please sign in to open your private business workspace.', { status:'auth_required', agent:'business' });
+    meta.userId = who.uid;
     try { meta.businessContext = await loadBusinessContext(who.uid, String(meta.workspaceId || ''), String(meta.projectId || '') || null); }
     catch (e) { return sendNow(res, stream, e.message || 'The selected business workspace could not be loaded.', { status:'workspace_unavailable', agent:'business' }); }
   }
