@@ -845,13 +845,24 @@ async function callOne(p, messages, withTools) {
       const a = toAnthropic(messages, withTools);
       r = await fetch(p.url, { method: 'POST', signal: t.signal, headers: { 'x-api-key': p.key, 'anthropic-version': ENV.ANTHROPIC_VERSION || '2023-06-01', 'Content-Type': 'application/json', ...(CFG.claudeWorkspaceId ? { 'anthropic-workspace-id': CFG.claudeWorkspaceId } : {}) }, body: JSON.stringify({ model: p.model, max_tokens: 3500, system: a.system, messages: a.messages, ...(a.tools ? { tools: a.tools } : {}) }) });
     } else {
-      const body = { model: p.model, messages, temperature: 0.6, max_tokens: p.id === 'groq' ? 2500 : 3000 };
+      // Keep Groq completion budgets modest: the account's TPM quota includes
+      // prompt and generated tokens, so oversized output reservations cause avoidable 429s.
+      const body = { model: p.model, messages, temperature: 0.6, max_tokens: p.id === 'groq' ? 1000 : 3000 };
       if (withTools) { body.tools = tools(); body.tool_choice = 'auto'; }
       r = await fetch(p.url, { method: 'POST', signal: t.signal, headers: { Authorization: 'Bearer ' + p.key, 'Content-Type': 'application/json', ...p.extra }, body: JSON.stringify(body) });
     }
   } finally { t.done(); }
   const txt = await r.text(); let j = null; try { j = JSON.parse(txt); } catch (e) {}
-  if (!r.ok) { const err = new Error(`${p.name} answered ${r.status}: ${clip(j && j.error && (j.error.message || j.error) || txt, 160)}`); err.status = r.status; throw err; }
+  if (!r.ok) {
+    const err = new Error(`${p.name} answered ${r.status}: ${clip(j && j.error && (j.error.message || j.error) || txt, 220)}`);
+    err.status = r.status;
+    const retryHeader = Number(r.headers && r.headers.get('retry-after'));
+    const tokenReset = r.headers && r.headers.get('x-ratelimit-reset-tokens');
+    const resetSeconds = tokenReset ? (Number(String(tokenReset).replace(/[^0-9.]/g, '')) || 0) : 0;
+    err.retryAfterMs = Number.isFinite(retryHeader) && retryHeader > 0 ? retryHeader * 1000 : resetSeconds > 0 ? resetSeconds * 1000 : 0;
+    err.rateScope = /tokens per minute|tpm|rate limit/i.test(err.message) ? 'provider' : 'model';
+    throw err;
+  }
   if (p.kind === 'anthropic') {
     const blocks = (j && j.content) || [];
     if (!blocks.length) throw new Error(`${p.name} sent an empty answer`);
@@ -887,8 +898,22 @@ async function callLLM(messages, withTools, opt) {
         if (st === 402) { providerCooling.set(p.id, Date.now() + 6 * 60 * 60 * 1000); break; } // billing/payment required: changing model IDs cannot fix this
         if (st === 401 || st === 403) { providerCooling.set(p.id, Date.now() + 10 * 60 * 1000); break; } // provider key/account auth failure
         if (st === 404) { cooling.set(p.name, Date.now() + 10 * 60 * 1000); break; } // unavailable/invalid model: continue to the next model on this provider
-        if (st === 429 || st === 413) { cooling.set(p.name, Date.now() + 60000); break; } // rate/token capacity: skip this model briefly
-        if (st === 503) { cooling.set(p.name, Date.now() + 60000); break; } // temporary provider/model demand: immediately try the next model, then retry this one after 60 seconds
+        if (st === 429) {
+          // TPM limits are commonly shared across every model on one provider.
+          // Cool the whole provider when the response identifies a shared rate limit.
+          const wait = Math.min(15 * 60 * 1000, Math.max(60000, e.retryAfterMs || 0));
+          if (e.rateScope === 'provider') providerCooling.set(p.id, Date.now() + wait);
+          else cooling.set(p.name, Date.now() + wait);
+          break;
+        }
+        if (st === 413) { cooling.set(p.name, Date.now() + 60000); break; }
+        if (st === 503) {
+          const wait = Math.min(5 * 60 * 1000, Math.max(45000, e.retryAfterMs || 0));
+          cooling.set(p.name, Date.now() + wait);
+          // A provider returning overload for one model may still serve its
+          // other models; keep trying those, then continue to the next provider.
+          break;
+        }
         if (st === 400) { cooling.set(p.name, Date.now() + 300000); break; }                 // invalid request/model configuration: avoid repeating it every turn
         if (st && st < 500) { cooling.set(p.name, Date.now() + 600000); break; }             // client-side failure: cool down this model
         if (attempt === 1) cooling.set(p.name, Date.now() + 30000); else await new Promise(r => setTimeout(r, 500));
