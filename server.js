@@ -277,6 +277,23 @@ async function loadBusinessContext(userId, workspaceId, projectId) {
   const ledgerResult = await fetchAllBusinessRows('/rest/v1/ledger_entries?' + ledgerParams.toString());
   const entries = ledgerResult.rows;
 
+  // Keep unassigned workspace rows visible to the agent, but never mix them
+  // into the selected project's totals or silently attach them to that project.
+  const unassignedParams = new URLSearchParams({
+    select: 'id,entry_date,entry_type,amount,currency,party,kind,category,project_id,upload_id',
+    workspace_id: 'eq.' + workspaceId,
+    project_id: 'is.null',
+    order: 'entry_date.desc,id.desc'
+  });
+  const unassignedResult = await fetchAllBusinessRows('/rest/v1/ledger_entries?' + unassignedParams.toString());
+  const unassignedCurrencyTotals = Object.create(null);
+  unassignedResult.rows.forEach(e => {
+    const currency = String(e.currency || 'UNKNOWN').toUpperCase();
+    if (!unassignedCurrencyTotals[currency]) unassignedCurrencyTotals[currency] = { currency, rows: 0, total_amount: 0 };
+    unassignedCurrencyTotals[currency].rows += 1;
+    unassignedCurrencyTotals[currency].total_amount += Number(e.amount) || 0;
+  });
+
   const currencyTotals = Object.create(null);
   const aggregateFor = currency => {
     if (!currencyTotals[currency]) currencyTotals[currency] = {
@@ -386,6 +403,17 @@ async function loadBusinessContext(userId, workspaceId, projectId) {
       }))
     },
     latest_upload: latestUpload,
+    unassigned_workspace_records: {
+      rows: unassignedResult.rows.length,
+      history_truncated_at_safety_limit: unassignedResult.truncated,
+      currency_summaries: Object.values(unassignedCurrencyTotals),
+      transactions: unassignedResult.rows.slice(0, 40).map(e => ({
+        date: e.entry_date, type: e.entry_type, classification: e.kind || 'legacy_unclassified',
+        amount: Number(e.amount), currency: e.currency, party: e.party,
+        category: e.category, upload_id: e.upload_id
+      })),
+      note: 'These records have no project assignment. They are intentionally excluded from selected-project totals until the user assigns them.'
+    },
     workspace_level_agreements_not_in_project_totals: {
       ...agreementPosition,
       agreements: (agreements || []).slice(0, 30).map(a => ({
