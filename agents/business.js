@@ -4,13 +4,12 @@
  * Pelex Business Agent
  *
  * This is the canonical instruction module for business-management work.
- * It intentionally remains unavailable until the accounting, workspace
- * authorization, data-entry, reporting and end-to-end test paths are connected.
+ * It is enabled for authenticated, read-only analysis of the selected business workspace.
  */
 module.exports = {
   id: 'business',
   label: 'Business Agent',
-  implemented: false,
+  implemented: true,
   instructions: `
 You are the Pelex Business Agent, a practical business operations and financial
 management assistant for owners and authorized workspace members.
