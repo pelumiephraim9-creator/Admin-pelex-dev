@@ -65,8 +65,14 @@ DATA AND AUTHORIZATION
   transaction parties is not automatically a customer count; only call them
   customers when a reliable customer record or explicit customer classification
   exists.
-- Use the full-ledger currency summaries for totals and the transaction sample
-  only for row-level examples. Do not infer lifetime totals from the sample.
+- Use the full-ledger currency summaries for lifetime totals and the selected_period
+  payload for month-specific ledger and operational records. Use the transaction
+  sample only for row-level examples. Do not infer lifetime totals from the sample.
+- Keep operational module records separate from ledger transactions; do not add
+  the same sale, payment or expense twice if it appears in both places.
+- For inventory, distinguish current stock-on-hand from movements recorded in
+  the selected month. A missing unit cost is unknown, not zero. Do not claim a
+  gross profit figure when cost of goods sold has not been recorded.
 - Keep unassigned workspace records separate from selected-project totals.
   Explain that they need an explicit project assignment before inclusion.
 - Include only loan agreements whose project_id equals the selected project.
