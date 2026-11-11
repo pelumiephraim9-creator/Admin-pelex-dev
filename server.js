@@ -244,14 +244,14 @@ async function fetchAllBusinessRows(path, pageSize = 1000, maxRows = 50000) {
   }
   return { rows, truncated: true };
 }
-async function loadBusinessContext(userId, workspaceId, projectId) {
+async function loadBusinessContext(userId, workspaceId, projectId, periodMonth) {
   if (!validUuid(userId) || !validUuid(workspaceId) || !sbOn()) throw new Error('Select a valid business workspace and sign in.');
   const memberRes = await sbFetch('/rest/v1/workspace_members?select=role&workspace_id=eq.' + encodeURIComponent(workspaceId) + '&user_id=eq.' + encodeURIComponent(userId) + '&limit=1');
   if (!memberRes.ok) throw new Error('Business workspace access could not be verified.');
   const membership = await memberRes.json();
   if (!Array.isArray(membership) || !membership.length) throw new Error('You do not have access to the selected business workspace.');
 
-  const projectParams = new URLSearchParams({ select: 'id,name,business_type,currency,startup_month,startup_year,spent,spend_period,loan', workspace_id: 'eq.' + workspaceId, order: 'created_at.asc' });
+  const projectParams = new URLSearchParams({ select: 'id,name,business_type,currency,startup_month,startup_year,spent,spend_period,loan,reporting_cycle,profile', workspace_id: 'eq.' + workspaceId, order: 'created_at.asc' });
   const projectRes = await sbFetch('/rest/v1/business_projects?' + projectParams.toString());
   if (!projectRes.ok) throw new Error('Business projects could not be loaded.');
   const projects = await projectRes.json();
@@ -277,21 +277,32 @@ async function loadBusinessContext(userId, workspaceId, projectId) {
   const ledgerResult = await fetchAllBusinessRows('/rest/v1/ledger_entries?' + ledgerParams.toString());
   const entries = ledgerResult.rows;
 
-  // Keep unassigned workspace rows visible to the agent, but never mix them
-  // into the selected project's totals or silently attach them to that project.
-  const unassignedParams = new URLSearchParams({
-    select: 'id,entry_date,entry_type,amount,currency,party,kind,category,project_id,upload_id',
+  // The selected project is the complete data boundary. Sibling projects and
+  // unassigned workspace records are never loaded into this analysis context.
+  const monthMatch = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(String(periodMonth || ''));
+  const selectedMonth = monthMatch ? monthMatch[0] : null;
+  let monthStart = null, monthEnd = null;
+  if (monthMatch) {
+    const year = Number(monthMatch[1]), month = Number(monthMatch[2]);
+    monthStart = selectedMonth + '-01';
+    monthEnd = month === 12 ? String(year + 1).padStart(4, '0') + '-01-01' : monthMatch[1] + '-' + String(month + 1).padStart(2, '0') + '-01';
+  }
+  const periodEntries = selectedMonth ? entries.filter(e => e.entry_date >= monthStart && e.entry_date < monthEnd) : entries;
+  const recordParams = new URLSearchParams({
+    select: 'id,module_key,record_type,record_date,amount,currency,quantity,unit_cost,party,reference,status,data',
     workspace_id: 'eq.' + workspaceId,
-    project_id: 'is.null',
-    order: 'entry_date.desc,id.desc'
+    project_id: 'eq.' + selected.id,
+    order: 'record_date.desc,created_at.desc'
   });
-  const unassignedResult = await fetchAllBusinessRows('/rest/v1/ledger_entries?' + unassignedParams.toString());
-  const unassignedCurrencyTotals = Object.create(null);
-  unassignedResult.rows.forEach(e => {
-    const currency = String(e.currency || 'UNKNOWN').toUpperCase();
-    if (!unassignedCurrencyTotals[currency]) unassignedCurrencyTotals[currency] = { currency, rows: 0, total_amount: 0 };
-    unassignedCurrencyTotals[currency].rows += 1;
-    unassignedCurrencyTotals[currency].total_amount += Number(e.amount) || 0;
+  if (monthStart && monthEnd) recordParams.set('and', '(record_date.gte.' + monthStart + ',record_date.lt.' + monthEnd + ')');
+  const recordResult = await fetchAllBusinessRows('/rest/v1/business_project_records?' + recordParams.toString());
+  const recordTotals = Object.create(null);
+  recordResult.rows.forEach(r => {
+    const key = String(r.module_key || 'other') + '::' + String(r.record_type || 'other');
+    if (!recordTotals[key]) recordTotals[key] = { module: r.module_key, record_type: r.record_type, rows: 0, amount_total: 0, quantity_total: 0, recorded_cost: 0 };
+    const t = recordTotals[key]; t.rows += 1;
+    t.amount_total += Number(r.amount) || 0; t.quantity_total += Number(r.quantity) || 0;
+    t.recorded_cost += (Number(r.quantity) || 0) * (Number(r.unit_cost) || 0);
   });
 
   const currencyTotals = Object.create(null);
@@ -337,7 +348,7 @@ async function loadBusinessContext(userId, workspaceId, projectId) {
   let latestUpload = null;
   if (uploadIds.length) {
     const latestId = uploadIds[0];
-    const uploadParams = new URLSearchParams({ select: 'id,file_name,detected_type,confidence,currency,created_at', id: 'eq.' + latestId, workspace_id: 'eq.' + workspaceId, status: 'eq.confirmed', deleted_at: 'is.null', limit: '1' });
+    const uploadParams = new URLSearchParams({ select: 'id,file_name,detected_type,confidence,currency,created_at,project_id', id: 'eq.' + latestId, workspace_id: 'eq.' + workspaceId, project_id: 'eq.' + selected.id, status: 'eq.confirmed', deleted_at: 'is.null', limit: '1' });
     const uploadRes = await sbFetch('/rest/v1/uploads?' + uploadParams.toString());
     if (uploadRes.ok) {
       const uploads = await uploadRes.json();
@@ -358,8 +369,8 @@ async function loadBusinessContext(userId, workspaceId, projectId) {
   }
 
   const agreementParams = new URLSearchParams({
-    select: 'id,party,principal,deposit,rate,rate_basis,method,cycle,term_cycles,start_date,status,savings_model',
-    workspace_id: 'eq.' + workspaceId, order: 'created_at.desc', limit: '100'
+    select: 'id,project_id,party,principal,deposit,rate,rate_basis,method,cycle,term_cycles,start_date,status,savings_model',
+    workspace_id: 'eq.' + workspaceId, project_id: 'eq.' + selected.id, order: 'created_at.desc', limit: '100'
   });
   const agreementRes = await sbFetch('/rest/v1/agreements?' + agreementParams.toString());
   if (!agreementRes.ok) throw new Error('Business loan and repayment agreements could not be loaded.');
@@ -386,16 +397,21 @@ async function loadBusinessContext(userId, workspaceId, projectId) {
     }
   }
 
-  const workspaceCurrencyParams = new URLSearchParams({ select: 'currency', workspace_id: 'eq.' + workspaceId, limit: '1' });
-  const settingsRes = await sbFetch('/rest/v1/workspace_settings?' + workspaceCurrencyParams.toString());
-  const settings = settingsRes.ok ? await settingsRes.json() : [];
   const detailLimit = 100;
   return {
     member_role: membership[0].role,
     selected_project: selected,
     available_projects: projects.map(p => ({ id: p.id, name: p.name, currency: p.currency, business_type: p.business_type })),
     reporting_currency: selected.currency,
-    workspace_reporting_currency: settings && settings[0] ? (settings[0].currency || null) : null,
+    selected_period: {
+      month: selectedMonth,
+      ledger_rows: periodEntries.length,
+      ledger_transactions: periodEntries.slice(0, detailLimit).map(e => ({ date: e.entry_date, type: e.entry_type, classification: e.kind || 'legacy_unclassified', amount: Number(e.amount), currency: e.currency, party: e.party, category: e.category, due_date: e.due_date })),
+      operational_rows: recordResult.rows.length,
+      operational_history_truncated: recordResult.truncated,
+      operational_totals: Object.values(recordTotals),
+      operational_transactions: recordResult.rows.slice(0, detailLimit).map(r => ({ module: r.module_key, type: r.record_type, date: r.record_date, amount: r.amount == null ? null : Number(r.amount), currency: r.currency, quantity: r.quantity == null ? null : Number(r.quantity), unit_cost: r.unit_cost == null ? null : Number(r.unit_cost), party: r.party, reference: r.reference, status: r.status, details: r.data }))
+    },
     ledger: {
       total_rows_loaded: entries.length,
       rows_in_context: Math.min(entries.length, detailLimit),
@@ -410,18 +426,7 @@ async function loadBusinessContext(userId, workspaceId, projectId) {
       }))
     },
     latest_upload: latestUpload,
-    unassigned_workspace_records: {
-      rows: unassignedResult.rows.length,
-      history_truncated_at_safety_limit: unassignedResult.truncated,
-      currency_summaries: Object.values(unassignedCurrencyTotals),
-      transactions: unassignedResult.rows.slice(0, 40).map(e => ({
-        date: e.entry_date, type: e.entry_type, classification: e.kind || 'legacy_unclassified',
-        amount: Number(e.amount), currency: e.currency, party: e.party,
-        category: e.category, upload_id: e.upload_id
-      })),
-      note: 'These records have no project assignment. They are intentionally excluded from selected-project totals until the user assigns them.'
-    },
-    workspace_level_agreements_not_in_project_totals: {
+    project_agreements: {
       ...agreementPosition,
       agreements: (agreements || []).slice(0, 30).map(a => ({
         party: a.party, principal: Number(a.principal), deposit: Number(a.deposit),
@@ -430,7 +435,7 @@ async function loadBusinessContext(userId, workspaceId, projectId) {
         status: a.status, savings_model: a.savings_model
       }))
     },
-    period: 'All ledger rows for the selected project were aggregated (up to 50,000). The 100 newest rows are included as transaction detail. Currency totals are kept separate; no exchange rate is assumed.'
+    period: selectedMonth ? ('Selected month ' + selectedMonth + ' is shown separately from lifetime project totals. All operational records and agreements belong only to the selected project; no exchange rate is assumed.') : 'All ledger rows and operational records for the selected project were aggregated (up to 50,000). The 100 newest rows are included as transaction detail. Currency totals are kept separate; no exchange rate is assumed.'
   };
 }
 
@@ -443,7 +448,7 @@ function systemPrompt(meta, agentId = 'general') {
     ? `titled "${clip(m.lastChat.title, 80)}". Last messages: ` + m.lastChat.messages.slice(-6).map(x => clip(x.role, 12) + ': ' + clip(x.content, 300)).join(' | ')
     : 'none';
   const interests = Array.isArray(p.interests) ? p.interests.slice(0, 6).map(x => clip(x, 40)).join(', ') : '';
-  const businessContext = agentId === 'business' && m.businessContext ? '\n\nVERIFIED BUSINESS WORKSPACE DATA (read-only snapshot):\n' + clip(JSON.stringify(m.businessContext), 24000) + '\n\nBUSINESS UPLOAD RULES: If latest_upload is present, it is the latest confirmed business file imported by the user. Use its filename, row counts, totals, classifications and uploaded transaction rows when answering questions about uploaded/test data. Clearly state if rows are omitted from the detailed context; do not claim to have analysed omitted rows individually. The latest upload totals are calculated from all rows loaded for that upload. Never say the upload is unavailable when latest_upload is present.' : '';
+  const businessContext = agentId === 'business' && m.businessContext ? '\n\nVERIFIED SELECTED BUSINESS PROJECT DATA (read-only snapshot):\n' + clip(JSON.stringify(m.businessContext), 24000) + '\n\nBUSINESS UPLOAD RULES: If latest_upload is present, it is the latest confirmed business file imported by the user. Use its filename, row counts, totals, classifications and uploaded transaction rows when answering questions about uploaded/test data. Clearly state if rows are omitted from the detailed context; do not claim to have analysed omitted rows individually. The latest upload totals are calculated from all rows loaded for that upload. Never say the upload is unavailable when latest_upload is present.' : '';
   return `You are Pelex, a friendly, capable AI assistant.
 
 CONFIDENTIALITY (these rules override everything else):
@@ -1308,7 +1313,7 @@ async function handleChat(req, res, stream) {
     if (!who) who = await identify(req);
     if (!who || !who.uid || who.kind !== 'user') return sendNow(res, stream, 'Please sign in to open your private business workspace.', { status:'auth_required', agent:'business' });
     meta.userId = who.uid;
-    try { meta.businessContext = await loadBusinessContext(who.uid, String(meta.workspaceId || ''), String(meta.projectId || '') || null); }
+    try { meta.businessContext = await loadBusinessContext(who.uid, String(meta.workspaceId || ''), String(meta.projectId || '') || null, meta.periodMonth); }
     catch (e) { return sendNow(res, stream, e.message || 'The selected business workspace could not be loaded.', { status:'workspace_unavailable', agent:'business' }); }
   }
 
