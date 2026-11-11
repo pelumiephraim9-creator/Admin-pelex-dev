@@ -4,10 +4,10 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const business = require('../agents/business');
 
-test('Business Agent module has the canonical identity and remains gated', () => {
+test('Business Agent module has the canonical identity and is enabled for authenticated read-only analysis', () => {
   assert.equal(business.id, 'business');
   assert.equal(business.label, 'Business Agent');
-  assert.equal(business.implemented, false);
+  assert.equal(business.implemented, true);\n  assert.deepEqual(business.tools, []);
   assert.ok(business.instructions.trim().length > 100);
 });
 
