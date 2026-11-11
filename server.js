@@ -228,62 +228,75 @@ async function purgeMedia() {
 }
 
 
-/* ---------------- authenticated Business Agent read-only workspace context ---------------- */
+/* ---------------- authenticated Business Agent workspace context ---------------- */
+async function fetchAllBusinessRows(path, pageSize = 1000, maxRows = 50000) {
+  const rows = [];
+  let offset = 0;
+  while (offset < maxRows) {
+    const end = Math.min(offset + pageSize - 1, maxRows - 1);
+    const response = await sbFetch(path, { headers: { Range: offset + '-' + end, 'Range-Unit': 'items' } });
+    if (!response.ok) throw new Error('Business records could not be loaded (' + response.status + ').');
+    const batch = await response.json();
+    if (!Array.isArray(batch)) throw new Error('The business records response was invalid.');
+    rows.push(...batch);
+    if (batch.length < pageSize) return { rows, truncated: false };
+    offset += batch.length;
+  }
+  return { rows, truncated: true };
+}
 async function loadBusinessContext(userId, workspaceId, projectId) {
   if (!validUuid(userId) || !validUuid(workspaceId) || !sbOn()) throw new Error('Select a valid business workspace and sign in.');
   const memberRes = await sbFetch('/rest/v1/workspace_members?select=role&workspace_id=eq.' + encodeURIComponent(workspaceId) + '&user_id=eq.' + encodeURIComponent(userId) + '&limit=1');
   if (!memberRes.ok) throw new Error('Business workspace access could not be verified.');
   const membership = await memberRes.json();
   if (!Array.isArray(membership) || !membership.length) throw new Error('You do not have access to the selected business workspace.');
-  const projectParams = new URLSearchParams({select:'id,name,business_type,currency,startup_month,startup_year',workspace_id:'eq.'+workspaceId,order:'created_at.asc'});
+
+  const projectParams = new URLSearchParams({ select: 'id,name,business_type,currency,startup_month,startup_year,spent,spend_period,loan', workspace_id: 'eq.' + workspaceId, order: 'created_at.asc' });
   const projectRes = await sbFetch('/rest/v1/business_projects?' + projectParams.toString());
   if (!projectRes.ok) throw new Error('Business projects could not be loaded.');
   const projects = await projectRes.json();
+  if (!Array.isArray(projects) || !projects.length) throw new Error('Create a business project before asking the Business Agent to analyse its records.');
+
   let selected = null;
   if (projectId) {
     if (!validUuid(projectId)) throw new Error('Select a valid business project.');
-    selected = (projects || []).find(p => p.id === projectId) || null;
+    selected = projects.find(p => p.id === projectId) || null;
     if (!selected) throw new Error('The selected project does not belong to this business.');
-  } else if ((projects || []).length === 1) selected = projects[0];
-  const ledgerParams = new URLSearchParams({select:'entry_date,entry_type,amount,currency,party,due_date,kind,category,project_id,upload_id',workspace_id:'eq.'+workspaceId,order:'entry_date.desc,id.desc',limit:'40'});
-  if (selected) ledgerParams.set('project_id','eq.'+selected.id);
-  const ledgerRes = await sbFetch('/rest/v1/ledger_entries?' + ledgerParams.toString());
-  if (!ledgerRes.ok) throw new Error('Business transactions could not be loaded.');
-  const entries = await ledgerRes.json();
-
-  // Always include the latest confirmed upload as a separate dataset, not only
-  // the most recent 40 general ledger rows. This lets Business Agent inspect a
-  // newly imported sales sheet even when the workspace already has many entries.
-  const uploadParams = new URLSearchParams({select:'id,file_name,detected_type,confidence,currency,created_at',workspace_id:'eq.'+workspaceId,status:'eq.confirmed',deleted_at:'is.null',order:'created_at.desc',limit:'1'});
-  const uploadRes = await sbFetch('/rest/v1/uploads?' + uploadParams.toString());
-  if (!uploadRes.ok) throw new Error('Uploaded business files could not be loaded.');
-  const uploads = await uploadRes.json();
-  let latestUpload = null;
-  if (Array.isArray(uploads) && uploads.length) {
-    const u = uploads[0];
-    const uploadLedgerParams = new URLSearchParams({select:'entry_date,entry_type,amount,currency,party,due_date,kind,category,project_id',workspace_id:'eq.'+workspaceId,upload_id:'eq.'+u.id,order:'entry_date.asc,id.asc',limit:'1000'});
-    if (selected) uploadLedgerParams.set('project_id','eq.'+selected.id);
-    const uploadLedgerRes = await sbFetch('/rest/v1/ledger_entries?' + uploadLedgerParams.toString());
-    if (!uploadLedgerRes.ok) throw new Error('The latest uploaded dataset could not be read.');
-    const uploadedRows = await uploadLedgerRes.json();
-    const uploadTotals = {row_count:uploadedRows.length,operating_income:0,operating_expenses:0,cash_in:0,cash_out:0,by_type:{}};
-    uploadedRows.forEach(e => {
-      const amount = Number(e.amount) || 0;
-      const kind = e.kind || (['expense','purchase','cost'].includes(e.entry_type) ? 'expense' : (['invoice','sale','receipt','payment'].includes(e.entry_type) ? 'income' : 'other'));
-      uploadTotals.by_type[e.entry_type] = (uploadTotals.by_type[e.entry_type] || 0) + 1;
-      if (kind === 'income') uploadTotals.operating_income += amount;
-      if (kind === 'expense') uploadTotals.operating_expenses += amount;
-      if (e.entry_type !== 'invoice' && ['income','principal_in','receivable_in','savings_in','capital'].includes(kind)) uploadTotals.cash_in += amount;
-      if (['expense','principal_out','transfer'].includes(kind)) uploadTotals.cash_out += amount;
-    });
-    uploadTotals.operating_profit = uploadTotals.operating_income - uploadTotals.operating_expenses;
-    latestUpload = {file_name:u.file_name,detected_type:u.detected_type,confidence:u.confidence,currency:u.currency,uploaded_at:u.created_at,rows_loaded:uploadedRows.length,rows_in_context:Math.min(uploadedRows.length,80),rows_omitted:Math.max(0,uploadedRows.length-80),totals:uploadTotals,transactions:uploadedRows.slice(0,80).map(e=>({date:e.entry_date,type:e.entry_type,classification:e.kind||'legacy_unclassified',amount:Number(e.amount),currency:e.currency,party:e.party,category:e.category,due_date:e.due_date,project_id:e.project_id}))};
+  } else if (projects.length === 1) {
+    selected = projects[0];
+  } else {
+    throw new Error('You have more than one project. Select the project you want the Business Agent to analyse first.');
   }
 
-  const totals = {operating_income:0,operating_expenses:0,cash_in:0,cash_out:0,loan_principal_issued:0,loan_principal_repaid:0,receivable_collections:0,customer_savings_held_in:0,owner_capital_in:0};
-  (entries || []).forEach(e => {
+  const ledgerParams = new URLSearchParams({
+    select: 'id,entry_date,entry_type,amount,currency,party,due_date,kind,category,project_id,upload_id,source_key,created_at',
+    workspace_id: 'eq.' + workspaceId,
+    project_id: 'eq.' + selected.id,
+    order: 'entry_date.desc,id.desc'
+  });
+  const ledgerResult = await fetchAllBusinessRows('/rest/v1/ledger_entries?' + ledgerParams.toString());
+  const entries = ledgerResult.rows;
+
+  const currencyTotals = Object.create(null);
+  const aggregateFor = currency => {
+    if (!currencyTotals[currency]) currencyTotals[currency] = {
+      currency, rows: 0, operating_income: 0, operating_expenses: 0,
+      operating_profit: 0, cash_in: 0, cash_out: 0,
+      loan_principal_issued: 0, loan_principal_repaid: 0,
+      receivable_collections: 0, customer_savings_received: 0,
+      owner_capital_in: 0, first_transaction: null, last_transaction: null
+    };
+    return currencyTotals[currency];
+  };
+  entries.forEach(e => {
+    const currency = String(e.currency || selected.currency || 'UNKNOWN').toUpperCase();
+    const totals = aggregateFor(currency);
     const amount = Number(e.amount) || 0;
-    const kind = e.kind || (['expense','purchase','cost'].includes(e.entry_type) ? 'expense' : (['invoice','sale','receipt','payment'].includes(e.entry_type) ? 'income' : 'other'));
+    const kind = e.kind || (['expense','purchase','cost'].includes(e.entry_type) ? 'expense' :
+      (['invoice','sale','receipt','payment'].includes(e.entry_type) ? 'income' : 'other'));
+    totals.rows += 1;
+    if (!totals.first_transaction || e.entry_date < totals.first_transaction) totals.first_transaction = e.entry_date;
+    if (!totals.last_transaction || e.entry_date > totals.last_transaction) totals.last_transaction = e.entry_date;
     if (kind === 'income') totals.operating_income += amount;
     if (kind === 'expense') totals.operating_expenses += amount;
     if (e.entry_type !== 'invoice' && ['income','principal_in','receivable_in','savings_in','capital'].includes(kind)) totals.cash_in += amount;
@@ -291,11 +304,99 @@ async function loadBusinessContext(userId, workspaceId, projectId) {
     if (kind === 'principal_out') totals.loan_principal_issued += amount;
     if (kind === 'principal_in') totals.loan_principal_repaid += amount;
     if (kind === 'receivable_in') totals.receivable_collections += amount;
-    if (kind === 'savings_in') totals.customer_savings_held_in += amount;
+    if (kind === 'savings_in') totals.customer_savings_received += amount;
     if (kind === 'capital') totals.owner_capital_in += amount;
   });
-  totals.operating_profit_in_loaded_rows = totals.operating_income - totals.operating_expenses;
-  return {member_role:membership[0].role,selected_project:selected,available_projects:(projects||[]).map(p=>({id:p.id,name:p.name,currency:p.currency,business_type:p.business_type})),reporting_currency:selected?selected.currency:null,period:'Latest 40 general ledger transactions, newest first; the separate latest uploaded dataset contains up to 1,000 imported rows, with up to 150 rows included for detailed inspection.',totals,latest_upload:latestUpload,transactions:(entries||[]).map(e=>({date:e.entry_date,type:e.entry_type,classification:e.kind||'legacy_unclassified',amount:Number(e.amount),currency:e.currency,party:e.party,category:e.category,due_date:e.due_date,project_id:e.project_id,upload_id:e.upload_id}))};
+  Object.values(currencyTotals).forEach(t => { t.operating_profit = t.operating_income - t.operating_expenses; });
+
+  const uploadIds = [...new Set(entries.filter(e => e.upload_id).map(e => e.upload_id))];
+  let latestUpload = null;
+  if (uploadIds.length) {
+    const latestId = uploadIds[0];
+    const uploadParams = new URLSearchParams({ select: 'id,file_name,detected_type,confidence,currency,created_at', id: 'eq.' + latestId, workspace_id: 'eq.' + workspaceId, status: 'eq.confirmed', deleted_at: 'is.null', limit: '1' });
+    const uploadRes = await sbFetch('/rest/v1/uploads?' + uploadParams.toString());
+    if (uploadRes.ok) {
+      const uploads = await uploadRes.json();
+      if (Array.isArray(uploads) && uploads.length) {
+        const rows = entries.filter(e => e.upload_id === latestId);
+        latestUpload = {
+          file_name: uploads[0].file_name, detected_type: uploads[0].detected_type,
+          confidence: uploads[0].confidence, currency: uploads[0].currency,
+          uploaded_at: uploads[0].created_at, rows_loaded: rows.length,
+          transactions: rows.slice(0, 80).map(e => ({
+            date: e.entry_date, type: e.entry_type, classification: e.kind || 'legacy_unclassified',
+            amount: Number(e.amount), currency: e.currency, party: e.party,
+            category: e.category, due_date: e.due_date
+          }))
+        };
+      }
+    }
+  }
+
+  const agreementParams = new URLSearchParams({
+    select: 'id,party,principal,deposit,rate,rate_basis,method,cycle,term_cycles,start_date,status,savings_model',
+    workspace_id: 'eq.' + workspaceId, order: 'created_at.desc', limit: '100'
+  });
+  const agreementRes = await sbFetch('/rest/v1/agreements?' + agreementParams.toString());
+  if (!agreementRes.ok) throw new Error('Business loan and repayment agreements could not be loaded.');
+  const agreements = await agreementRes.json();
+  const agreementIds = Array.isArray(agreements) ? agreements.map(a => a.id).filter(Boolean) : [];
+  let agreementPosition = { count: agreementIds.length, principal_total: 0, amount_due: 0, amount_paid: 0, outstanding: 0, overdue: 0 };
+  if (agreementIds.length) {
+    const scheduleParams = new URLSearchParams({
+      select: 'agreement_id,due_date,amount_due,amount_paid,status',
+      agreement_id: 'in.(' + agreementIds.join(',') + ')',
+      order: 'due_date.asc', limit: '5000'
+    });
+    const scheduleRes = await sbFetch('/rest/v1/schedule_items?' + scheduleParams.toString());
+    if (scheduleRes.ok) {
+      const schedule = await scheduleRes.json();
+      agreements.forEach(a => { agreementPosition.principal_total += Number(a.principal) || 0; });
+      (schedule || []).forEach(s => {
+        const due = Number(s.amount_due) || 0, paid = Number(s.amount_paid) || 0;
+        agreementPosition.amount_due += due;
+        agreementPosition.amount_paid += paid;
+        agreementPosition.outstanding += Math.max(0, due - paid);
+        if (s.status !== 'paid' && s.due_date < new Date().toISOString().slice(0, 10)) agreementPosition.overdue += Math.max(0, due - paid);
+      });
+    }
+  }
+
+  const workspaceCurrencyParams = new URLSearchParams({ select: 'currency,reporting_currency', workspace_id: 'eq.' + workspaceId, limit: '1' });
+  const settingsRes = await sbFetch('/rest/v1/workspace_settings?' + workspaceCurrencyParams.toString());
+  const settings = settingsRes.ok ? await settingsRes.json() : [];
+  const detailLimit = 100;
+  return {
+    member_role: membership[0].role,
+    selected_project: selected,
+    available_projects: projects.map(p => ({ id: p.id, name: p.name, currency: p.currency, business_type: p.business_type })),
+    reporting_currency: selected.currency,
+    workspace_reporting_currency: settings && settings[0] ? (settings[0].reporting_currency || settings[0].currency || null) : null,
+    ledger: {
+      total_rows_loaded: entries.length,
+      rows_in_context: Math.min(entries.length, detailLimit),
+      rows_omitted_from_detail: Math.max(0, entries.length - detailLimit),
+      history_truncated_at_safety_limit: ledgerResult.truncated,
+      currency_summaries: Object.values(currencyTotals),
+      transactions: entries.slice(0, detailLimit).map(e => ({
+        date: e.entry_date, type: e.entry_type, classification: e.kind || 'legacy_unclassified',
+        amount: Number(e.amount), currency: e.currency, party: e.party,
+        category: e.category, due_date: e.due_date, project_id: e.project_id,
+        upload_id: e.upload_id, source_key: e.source_key
+      }))
+    },
+    latest_upload: latestUpload,
+    workspace_level_agreements_not_in_project_totals: {
+      ...agreementPosition,
+      agreements: (agreements || []).slice(0, 30).map(a => ({
+        party: a.party, principal: Number(a.principal), deposit: Number(a.deposit),
+        rate: Number(a.rate), rate_basis: a.rate_basis, method: a.method,
+        cycle: a.cycle, term_cycles: a.term_cycles, start_date: a.start_date,
+        status: a.status, savings_model: a.savings_model
+      }))
+    },
+    period: 'All ledger rows for the selected project were aggregated (up to 50,000). The 100 newest rows are included as transaction detail. Currency totals are kept separate; no exchange rate is assumed.'
+  };
 }
 
 /* ---------------- system prompt ---------------- */
