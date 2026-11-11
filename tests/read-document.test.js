@@ -52,7 +52,7 @@ test('text documents are extracted locally without saving or importing ledger ro
   const old = process.env.GEMINI_API_KEY;
   delete process.env.GEMINI_API_KEY;
   try {
-    const result = JSON.parse(await reader.run({}, context(dataUrl('text/plain', 'Quarterly report\nRevenue: NGN 500,000'))));
+    const result = JSON.parse(await reader.run({ prompt: 'File name: quarterly-report.txt' }, context(dataUrl('text/plain', 'Quarterly report\nRevenue: NGN 500,000'))));
     assert.equal(result.document_type, 'txt');
     assert.match(result.text, /Quarterly report/);
     assert.deepEqual(result.rows, []);
@@ -66,10 +66,10 @@ test('CSV and JSON files are read as document content without automatic imports'
   const old = process.env.GEMINI_API_KEY;
   delete process.env.GEMINI_API_KEY;
   try {
-    const csv = JSON.parse(await reader.run({}, context(dataUrl('text/csv', 'Date,Amount\n2026-11-01,1500'))));
+    const csv = JSON.parse(await reader.run({ prompt: 'File name: sales.csv' }, context(dataUrl('text/csv', 'Date,Amount\n2026-11-01,1500'))));
     assert.match(csv.text, /2026-11-01,1500/);
     assert.deepEqual(csv.rows, []);
-    const json = JSON.parse(await reader.run({}, context(dataUrl('application/json', '{"sales":12}'))));
+    const json = JSON.parse(await reader.run({ prompt: 'File name: sales.json' }, context(dataUrl('application/json', '{"sales":12}'))));
     assert.match(json.text, /"sales":12/);
     assert.deepEqual(json.rows, []);
   } finally {
