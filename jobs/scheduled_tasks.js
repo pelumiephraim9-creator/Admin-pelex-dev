@@ -237,6 +237,14 @@ async function processTask(ctx, row) {
       error.permanent = true;
       throw error;
     }
+    // Scheduled tasks currently store no workspace/project binding. Do not
+    // run workspace agents without that authorization context, even though
+    // their interactive chat modules are available.
+    if (bot !== 'general') {
+      const error = new Error('Scheduled execution for ' + bot + ' is not connected to an authorized workspace context yet.');
+      error.permanent = true;
+      throw error;
+    }
     const agent = AGENTS.getAgent(bot);
     if (!agent || !agent.implemented) {
       const error = new Error(`The ${bot} agent is registered but its execution module is not implemented yet.`);
