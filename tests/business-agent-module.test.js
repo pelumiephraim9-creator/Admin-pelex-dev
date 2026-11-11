@@ -45,3 +45,17 @@ test('Business Agent context is gated by verified workspace membership and is re
   assert.match(server, /meta\.businessContext = await loadBusinessContext/);
   assert.match(business.instructions, /read-only/i);
 });
+
+test('Business Agent context separates selected-project totals from unassigned records', () => {
+  assert.match(server, /fetchAllBusinessRows/);
+  assert.match(server, /currency_summaries/);
+  assert.match(server, /unassigned_workspace_records/);
+  assert.match(server, /history_truncated_at_safety_limit/);
+  assert.match(server, /project_id: 'eq\.' \+ selected\.id/);
+  assert.match(business.instructions, /unassigned/);
+});
+
+test('legacy receipts are not assumed to be new operating revenue', () => {
+  assert.match(server, /e\.kind == null && e\.entry_type === 'receipt'/);
+  assert.match(business.instructions, /legacy receipt with no explicit accounting kind/i);
+});
