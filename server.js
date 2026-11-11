@@ -277,7 +277,7 @@ async function loadBusinessContext(userId, workspaceId, projectId) {
       if (['expense','principal_out','transfer'].includes(kind)) uploadTotals.cash_out += amount;
     });
     uploadTotals.operating_profit = uploadTotals.operating_income - uploadTotals.operating_expenses;
-    latestUpload = {file_name:u.file_name,detected_type:u.detected_type,confidence:u.confidence,currency:u.currency,uploaded_at:u.created_at,rows_loaded:uploadedRows.length,rows_in_context:Math.min(uploadedRows.length,150),rows_omitted:Math.max(0,uploadedRows.length-150),totals:uploadTotals,transactions:uploadedRows.slice(0,150).map(e=>({date:e.entry_date,type:e.entry_type,classification:e.kind||'legacy_unclassified',amount:Number(e.amount),currency:e.currency,party:e.party,category:e.category,due_date:e.due_date,project_id:e.project_id}))};
+    latestUpload = {file_name:u.file_name,detected_type:u.detected_type,confidence:u.confidence,currency:u.currency,uploaded_at:u.created_at,rows_loaded:uploadedRows.length,rows_in_context:Math.min(uploadedRows.length,80),rows_omitted:Math.max(0,uploadedRows.length-80),totals:uploadTotals,transactions:uploadedRows.slice(0,80).map(e=>({date:e.entry_date,type:e.entry_type,classification:e.kind||'legacy_unclassified',amount:Number(e.amount),currency:e.currency,party:e.party,category:e.category,due_date:e.due_date,project_id:e.project_id}))};
   }
 
   const totals = {operating_income:0,operating_expenses:0,cash_in:0,cash_out:0,loan_principal_issued:0,loan_principal_repaid:0,receivable_collections:0,customer_savings_held_in:0,owner_capital_in:0};
