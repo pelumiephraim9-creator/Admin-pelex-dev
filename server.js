@@ -1094,7 +1094,8 @@ async function handleChat(req, res, stream) {
     if (!allow('who:' + who.id, 15, 60000)) return send(res, 429, { error: 'You are sending messages too fast. Wait a moment.' });
     if (!allow('whoday:' + who.id, who.kind === 'user' ? CFG.userDaily : CFG.guestDaily, 86400000)) return send(res, 429, { error: who.kind === 'user' ? 'Daily message limit reached. Please come back tomorrow.' : 'You have used your free guest messages for today. Sign in for more.' });
   }
-  let body; try { body = await readBody(req, 6500000); } catch (e) { return send(res, e.code || 400, { error: e.code === 413 ? 'Message or images too large.' : 'Bad request.' }); }
+  // A 10 MB PDF becomes roughly 13.4 MB when base64-encoded in the JSON request.
+  let body; try { body = await readBody(req, 15000000); } catch (e) { return send(res, e.code || 400, { error: e.code === 413 ? 'Message or uploaded file too large.' : 'Bad request.' }); }
   // Uploaded document text needs a larger limit than ordinary chat.
   // The frontend prefixes extracted files with Document "filename":.
   const rawChatInput = String(body.chatInput == null ? '' : body.chatInput);
@@ -1105,7 +1106,7 @@ async function handleChat(req, res, stream) {
   // Keep the total encoded payload within the request-body limit.
   const images = rawImgs.slice(0, 6).filter(u => typeof u === 'string' && u.length < 5500000 && /^data:(?:image\/(png|jpeg|webp|gif)|application\/pdf);base64,[A-Za-z0-9+/=]+$/.test(u));
   if (!text) return send(res, 400, { error: 'Empty message.' });
-  if (images.reduce((n, u) => n + u.length, 0) > 5500000) return send(res, 413, { error: 'The uploaded files are too large. Try a smaller PDF or fewer images.' });
+  if (images.reduce((n, u) => n + u.length, 0) > 13500000) return send(res, 413, { error: 'The uploaded files are too large. Try a smaller PDF or fewer images.' });
   const sid = cleanSid(body.sessionId);
   if (!allow('sid:' + sid, 15, 60000)) return send(res, 429, { error: 'Too many messages in this chat. Wait a moment.' });
   if (!allow('day:' + ip, 600, 86400000)) return send(res, 429, { error: 'Daily limit reached. Please come back tomorrow.' });
