@@ -87,3 +87,21 @@ test('Business Agent project mutation and approval RPCs are not anonymously exec
     assert.match(migration, new RegExp('REVOKE ALL ON FUNCTION public\\.' + fn + '[\\s\\S]*?FROM PUBLIC, anon', 'i'));
   }
 });
+
+test('Fashion is a first-class business type with its own retail dashboard metrics', () => {
+  const migration = fs.readFileSync(
+    'supabase/migrations/20261111203440_add_fashion_business_type_and_project_metrics.sql',
+    'utf8'
+  );
+  assert.match(migration, /'fashion','Fashion and clothing retail'/);
+  assert.match(migration, /'sales','inventory','orders','payables','receivables','reports'/);
+  assert.match(migration, /when 'fashion' then business_metrics/);
+  for (const metric of [
+    'sales_revenue', 'refunds', 'discounts',
+    'net_sales_after_refunds_and_discounts', 'cost_of_goods_recorded',
+    'gross_profit_on_recorded_cost', 'orders_recorded',
+    'stock_on_hand_value', 'stock_on_hand_quantity'
+  ]) {
+    assert.ok(migration.includes("'" + metric + "'"), 'Missing fashion metric: ' + metric);
+  }
+});
