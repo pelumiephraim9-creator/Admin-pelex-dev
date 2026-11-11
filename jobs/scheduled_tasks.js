@@ -317,17 +317,10 @@ async function tick(ctx) {
   if (running || !ctx.sbOn()) return;
   running = true;
   try {
-    if (!ctx._scheduledChatRepairDone && Date.now() >= (ctx._scheduledChatRepairNextAt || 0)) {
-      try {
-        await repairDeliveredScheduledChats(ctx);
-        ctx._scheduledChatRepairDone = true;
-      } catch (repairErr) {
-        // Do not let one stale/deleted chat trigger a full recovery scan every
-        // 30 seconds. Retry recovery at most once every five minutes.
-        ctx._scheduledChatRepairNextAt = Date.now() + 5 * 60 * 1000;
-        ctx.log('scheduled chat recovery deferred (next retry in 5 minutes):', repairErr.message);
-      }
-    }
+    // Do not automatically recreate chats for already-delivered tasks.
+    // A user may intentionally clear/delete a result chat; startup recovery
+    // must not resurrect it or create another chat on every backend restart.
+    // New task deliveries create their result chat exactly once in deliver().
     const rows = await rpc(ctx, 'claim_due_scheduled_tasks_v2', { p_limit: 3, p_lock_seconds: 300 });
     if (ctx.COMMANDS && typeof ctx.COMMANDS.setFeature === 'function') ctx.COMMANDS.setFeature('scheduled', true);
     if (!Array.isArray(rows) || !rows.length) return;
