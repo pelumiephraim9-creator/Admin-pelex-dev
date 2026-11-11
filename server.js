@@ -301,7 +301,9 @@ async function loadBusinessContext(userId, workspaceId, projectId) {
       operating_profit: 0, cash_in: 0, cash_out: 0,
       loan_principal_issued: 0, loan_principal_repaid: 0,
       receivable_collections: 0, customer_savings_received: 0,
-      owner_capital_in: 0, first_transaction: null, last_transaction: null
+      owner_capital_in: 0, sales_records: 0, invoices_issued: 0,
+      receipts_recorded: 0, expense_records: 0, distinct_named_parties: 0,
+      _parties: new Set(), first_transaction: null, last_transaction: null
     };
     return currencyTotals[currency];
   };
@@ -312,6 +314,11 @@ async function loadBusinessContext(userId, workspaceId, projectId) {
     const kind = e.kind || (['expense','purchase','cost'].includes(e.entry_type) ? 'expense' :
       (['invoice','sale','receipt','payment'].includes(e.entry_type) ? 'income' : 'other'));
     totals.rows += 1;
+    if (e.entry_type === 'sale' || e.entry_type === 'invoice') totals.sales_records += 1;
+    if (e.entry_type === 'invoice') totals.invoices_issued += 1;
+    if (e.entry_type === 'receipt') totals.receipts_recorded += 1;
+    if (kind === 'expense') totals.expense_records += 1;
+    if (e.party) totals._parties.add(String(e.party).trim().toLowerCase());
     if (!totals.first_transaction || e.entry_date < totals.first_transaction) totals.first_transaction = e.entry_date;
     if (!totals.last_transaction || e.entry_date > totals.last_transaction) totals.last_transaction = e.entry_date;
     if (kind === 'income' && !(e.kind == null && e.entry_type === 'receipt')) totals.operating_income += amount;
@@ -324,7 +331,7 @@ async function loadBusinessContext(userId, workspaceId, projectId) {
     if (kind === 'savings_in') totals.customer_savings_received += amount;
     if (kind === 'capital') totals.owner_capital_in += amount;
   });
-  Object.values(currencyTotals).forEach(t => { t.operating_profit = t.operating_income - t.operating_expenses; });
+  Object.values(currencyTotals).forEach(t => { t.operating_profit = t.operating_income - t.operating_expenses; t.distinct_named_parties = t._parties.size; delete t._parties; });
 
   const uploadIds = [...new Set(entries.filter(e => e.upload_id).map(e => e.upload_id))];
   let latestUpload = null;
