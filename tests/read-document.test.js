@@ -135,3 +135,26 @@ test('XLSX extraction preserves worksheet names and row structure', async () => 
     if (old !== undefined) process.env.GEMINI_API_KEY = old;
   }
 });
+
+test('PPTX and ODS files expose slide text and spreadsheet cell structure', async () => {
+  const old = process.env.GEMINI_API_KEY;
+  delete process.env.GEMINI_API_KEY;
+  try {
+    const pptx = makeZip({
+      'ppt/slides/slide1.xml': '<p:sld><a:p><a:r><a:t>Quarterly outlook</a:t></a:r></a:p></p:sld>'
+    });
+    const slides = JSON.parse(await reader.run({ prompt: 'File name: outlook.pptx' }, context('data:application/vnd.openxmlformats-officedocument.presentationml.presentation;base64,' + pptx.toString('base64'))));
+    assert.match(slides.text, /SLIDE 1/);
+    assert.match(slides.text, /Quarterly outlook/);
+
+    const ods = makeZip({
+      'content.xml': '<office:document-content><office:body><office:spreadsheet><table:table table:name="Ledger"><table:table-row><table:table-cell><text:p>Date</text:p></table:table-cell><table:table-cell><text:p>Amount</text:p></table:table-cell></table:table-row><table:table-row><table:table-cell><text:p>2026-11-01</text:p></table:table-cell><table:table-cell office:value="1500"><text:p>1500</text:p></table:table-cell></table:table-row></table:table></office:spreadsheet></office:body></office:document-content>'
+    });
+    const sheet = JSON.parse(await reader.run({ prompt: 'File name: ledger.ods' }, context('data:application/vnd.oasis.opendocument.spreadsheet;base64,' + ods.toString('base64'))));
+    assert.match(sheet.text, /WORKSHEET: Ledger/);
+    assert.match(sheet.text, /Date\tAmount/);
+    assert.match(sheet.text, /2026-11-01\t1500/);
+  } finally {
+    if (old !== undefined) process.env.GEMINI_API_KEY = old;
+  }
+});
