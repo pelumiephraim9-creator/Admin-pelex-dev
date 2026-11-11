@@ -770,7 +770,12 @@ async function runTool(name, args, run) {
    vision   gemini > openrouter > claude   (Mistral is still supported: set MISTRAL_API_KEY and add it to a ROUTE_ list)
    A provider with no key is skipped. A failing provider cools off for a while so the next message does not wait on it. */
 const PRIVATE_OK = new Set((ENV.PRIVATE_PROVIDERS || 'groq,cloudflare,sambanova,claude').split(',').map(x => x.trim()).filter(Boolean));
-const DEFAULT_ROUTES = { general: 'groq,openrouter,nvidia,cloudflare,gemini,sambanova,claude', coding: 'gemini,groq,nvidia,openrouter,sambanova,cloudflare,claude', data: 'sambanova,groq,nvidia,gemini,openrouter,cloudflare,claude', vision: 'gemini,openrouter,claude' };
+const DEFAULT_ROUTES = {
+  general: 'groq,openrouter,nvidia,cloudflare,gemini,mistral,sambanova,claude',
+  coding: 'gemini,groq,nvidia,openrouter,mistral,sambanova,cloudflare,claude',
+  data: 'sambanova,groq,nvidia,gemini,openrouter,mistral,cloudflare,claude',
+  vision: 'groq,gemini,openrouter,claude'
+};
 const routeOf = task => {
   const configured = String(ENV['ROUTE_' + String(task).toUpperCase()] || DEFAULT_ROUTES[task] || DEFAULT_ROUTES.general)
     .split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
@@ -884,8 +889,12 @@ async function callOne(p, messages, withTools) {
 }
 async function callLLM(messages, withTools, opt) {
   opt = opt || {};
-  const all = chain(opt.task || 'general', opt.privacy || 'public').filter(p => p.id !== 'claude' || claudeAllowed());
-  if (!all.length) throw new Error('No model key is set on the server.');
+  const task = opt.task || 'general';
+  const all = chain(task, opt.privacy || 'public').filter(p => p.id !== 'claude' || claudeAllowed());
+  // Safe diagnostic: model IDs only, never keys or prompt content. This makes
+  // it clear in production logs whether a provider was skipped for missing config.
+  log('model fallback candidates:', task, all.map(p => p.name).join(' -> ') || '(none configured)');
+  if (!all.length) throw new Error('No model key is set on the server for task: ' + task);
   // Provider-level cooldowns prevent trying every model on an account that
   // has a provider-wide billing/authentication failure (notably SambaNova 402).
   const now = Date.now();
