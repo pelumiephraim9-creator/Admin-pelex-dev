@@ -314,7 +314,7 @@ async function loadBusinessContext(userId, workspaceId, projectId) {
     totals.rows += 1;
     if (!totals.first_transaction || e.entry_date < totals.first_transaction) totals.first_transaction = e.entry_date;
     if (!totals.last_transaction || e.entry_date > totals.last_transaction) totals.last_transaction = e.entry_date;
-    if (kind === 'income') totals.operating_income += amount;
+    if (kind === 'income' && !(e.kind == null && e.entry_type === 'receipt')) totals.operating_income += amount;
     if (kind === 'expense') totals.operating_expenses += amount;
     if (e.entry_type !== 'invoice' && ['income','principal_in','receivable_in','savings_in','capital'].includes(kind)) totals.cash_in += amount;
     if (['expense','principal_out','transfer'].includes(kind)) totals.cash_out += amount;
@@ -379,7 +379,7 @@ async function loadBusinessContext(userId, workspaceId, projectId) {
     }
   }
 
-  const workspaceCurrencyParams = new URLSearchParams({ select: 'currency,reporting_currency', workspace_id: 'eq.' + workspaceId, limit: '1' });
+  const workspaceCurrencyParams = new URLSearchParams({ select: 'currency', workspace_id: 'eq.' + workspaceId, limit: '1' });
   const settingsRes = await sbFetch('/rest/v1/workspace_settings?' + workspaceCurrencyParams.toString());
   const settings = settingsRes.ok ? await settingsRes.json() : [];
   const detailLimit = 100;
@@ -388,7 +388,7 @@ async function loadBusinessContext(userId, workspaceId, projectId) {
     selected_project: selected,
     available_projects: projects.map(p => ({ id: p.id, name: p.name, currency: p.currency, business_type: p.business_type })),
     reporting_currency: selected.currency,
-    workspace_reporting_currency: settings && settings[0] ? (settings[0].reporting_currency || settings[0].currency || null) : null,
+    workspace_reporting_currency: settings && settings[0] ? (settings[0].currency || null) : null,
     ledger: {
       total_rows_loaded: entries.length,
       rows_in_context: Math.min(entries.length, detailLimit),
