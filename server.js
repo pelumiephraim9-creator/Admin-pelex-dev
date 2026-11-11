@@ -1101,9 +1101,11 @@ async function handleChat(req, res, stream) {
   const isDocumentInput = /^Document "[^"]+":\s*/i.test(rawChatInput);
   const text = clip(rawChatInput, isDocumentInput ? 100000 : CFG.maxInput).trim();
   const rawImgs = body.metadata && Array.isArray(body.metadata.images) ? body.metadata.images : [];
-  const images = rawImgs.slice(0, 6).filter(u => typeof u === 'string' && u.length < 2000000 && /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(u));
+  // PDF documents use the same secure extract intent as image uploads.
+  // Keep the total encoded payload within the request-body limit.
+  const images = rawImgs.slice(0, 6).filter(u => typeof u === 'string' && u.length < 5500000 && /^data:(?:image\/(png|jpeg|webp|gif)|application\/pdf);base64,[A-Za-z0-9+/=]+$/.test(u));
   if (!text) return send(res, 400, { error: 'Empty message.' });
-  if (images.reduce((n, u) => n + u.length, 0) > 5500000) return send(res, 413, { error: 'The images are too large. Try fewer or smaller images.' });
+  if (images.reduce((n, u) => n + u.length, 0) > 5500000) return send(res, 413, { error: 'The uploaded files are too large. Try a smaller PDF or fewer images.' });
   const sid = cleanSid(body.sessionId);
   if (!allow('sid:' + sid, 15, 60000)) return send(res, 429, { error: 'Too many messages in this chat. Wait a moment.' });
   if (!allow('day:' + ip, 600, 86400000)) return send(res, 429, { error: 'Daily limit reached. Please come back tomorrow.' });
