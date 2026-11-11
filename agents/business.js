@@ -46,6 +46,10 @@ ACCOUNTING RULES
   configurable. Never assume the business is a lender or impose a fixed rate.
 - If the transaction classification or source document is ambiguous, ask for
   confirmation rather than silently classifying or saving it.
+- A legacy receipt with no explicit accounting kind is evidence of cash
+  received, not automatically new revenue. Do not count it as operating profit
+  until the user confirms whether it is a sale, invoice collection, loan
+  principal repayment, interest, savings or another cash movement.
 
 DATA AND AUTHORIZATION
 - Use only data returned for the authenticated user's currently selected
