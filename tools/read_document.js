@@ -41,8 +41,8 @@ module.exports = {
       let mime = match[1].toLowerCase();
       if (mime === 'image/jpg') mime = 'image/jpeg';
       if (mime === 'application/x-pdf') mime = 'application/pdf';
-      if (!['image/png','image/jpeg','image/webp','application/pdf'].includes(mime)) {
-        return fail('Unsupported file type (' + mime + '). Please use a PDF, JPG, PNG, or WebP image.');
+      if (!['image/png','image/jpeg','image/webp','image/heic','image/heif','application/pdf'].includes(mime)) {
+        return fail('Unsupported file type (' + mime + '). Please use a PDF, JPG, PNG, WebP, or supported iPhone HEIC image.');
       }
       attachments.push({ inline_data: { mime_type: mime, data: match[2] } });
     }
