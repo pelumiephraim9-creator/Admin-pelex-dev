@@ -24,7 +24,30 @@ function office(ext,b){
  const f=zip(b);
  if(ext==='docx'){const x=f['word/document.xml'];if(!x)throw Error('Word document body is missing.');return {text:[...x.matchAll(/<w:p\b[^>]*>([\s\S]*?)<\/w:p>/g)].map(m=>strip(m[1])).filter(Boolean).join('\n'),sections:['Word document']}}
  if(ext==='pptx'){const k=Object.keys(f).filter(x=>/^ppt\/slides\/slide\d+\.xml$/.test(x)).sort((a,b)=>Number(a.match(/slide(\d+)/)[1])-Number(b.match(/slide(\d+)/)[1]));if(!k.length)throw Error('No readable presentation slides found.');return {text:k.map((x,i)=>'SLIDE '+(i+1)+'\n'+strip(f[x])).join('\n\n'),sections:k.map((x,i)=>'Slide '+(i+1))}}
- if(ext==='odt'||ext==='ods'||ext==='odp'){if(!f['content.xml'])throw Error('OpenDocument content is missing.');return {text:strip(f['content.xml']),sections:[ext.toUpperCase()]}}
+ if(ext==='odt'||ext==='ods'||ext==='odp'){
+  if(!f['content.xml'])throw Error('OpenDocument content is missing.');
+  const source=f['content.xml'];
+  if(ext==='ods'){
+   const tables=[];
+   for(const table of source.matchAll(/<table:table\b([^>]*)>([\s\S]*?)<\/table:table>/g)){
+    const name=(table[1].match(/\btable:name="([^"]+)"/)||[])[1]||'Worksheet';
+    const rows=[];
+    for(const row of table[2].matchAll(/<table:table-row\b[^>]*>([\s\S]*?)<\/table:table-row>/g)){
+     const cells=[];
+     for(const cell of row[1].matchAll(/<table:table-cell\b([^>]*?)(?:\/>|>([\s\S]*?)<\/table:table-cell>)/g)){
+      const attrs=cell[1]||'',inside=cell[2]||'';
+      const value=(attrs.match(/\boffice:(?:value|date-value|string-value)="([^"]+)"/)||[])[1]||'';
+      cells.push(strip(inside)||value);
+     }
+     rows.push(cells.join('\t'));
+    }
+    if(rows.length)tables.push('WORKSHEET: '+decode(name)+'\n'+rows.join('\n'));
+   }
+   if(tables.length)return {text:tables.join('\n\n'),sections:tables.map((x,i)=>'Worksheet '+(i+1))};
+  }
+  const paragraphs=[...source.matchAll(/<text:(?:p|h)\b[^>]*>([\s\S]*?)<\/text:(?:p|h)>/g)].map(m=>strip(m[1])).filter(Boolean);
+  return {text:paragraphs.length?paragraphs.join('\n'):strip(source),sections:[ext.toUpperCase()]};
+ }
  if(ext==='xlsx'||ext==='xlsm'){
   const shared=[];for(const m of (f['xl/sharedStrings.xml']||'').matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/g))shared.push(strip(m[1]));
   const rels=f['xl/_rels/workbook.xml.rels']||'',map={};for(const m of rels.matchAll(/<Relationship\b([^>]*)\/?>/g)){const id=(m[1].match(/\bId="([^"]+)"/)||[])[1],t=(m[1].match(/\bTarget="([^"]+)"/)||[])[1];if(id&&t)map[id]=t.replace(/^\//,'').startsWith('xl/')?t.replace(/^\//,''):'xl/'+t.replace(/^\//,'').replace(/^(\.\.\/)+/,'')}
