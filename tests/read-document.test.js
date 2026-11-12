@@ -143,7 +143,7 @@ test('locally supported documents bypass Gemini even when a key is configured', 
       context(dataUrl('text/csv', 'Date,Item,Amount\\n2026-11-12,Inventory,4500'))
     ));
     assert.match(result.text, /Inventory,4500/);
-    assert.match(result.summary, /No AI model was used/);
+    assert.match(result.summary, /No AI model/);
     assert.deepEqual(result.rows, []);
   } finally {
     global.fetch = oldFetch;
@@ -221,5 +221,20 @@ test('scanned PDF pages are passed to local OCR without an AI provider', async (
       { images: ['data:application/pdf;base64,' + Buffer.from('%PDF-1.4').toString('base64')], localOcr: async () => 'SCANNED RECEIPT TOTAL NGN 7500' }
     ));
     assert.match(result.error, /Invalid PDF|Invalid PDF structure|The PDF file is empty|Invalid PDF/);
+  } finally { global.fetch = oldFetch; }
+});
+
+test('image OCR uses local OCR and never calls a vision provider', async () => {
+  const oldFetch = global.fetch;
+  global.fetch = async () => { throw new Error('No external vision API may be called'); };
+  try {
+    const result = JSON.parse(await reader.run(
+      { prompt: 'File name: receipt.png' },
+      { images: ['data:image/png;base64,' + Buffer.from('image fixture').toString('base64')], localOcr: async () => 'RECEIPT TOTAL NGN 4500' }
+    ));
+    assert.match(result.text, /RECEIPT TOTAL NGN 4500/);
+    assert.equal(result.source.extraction_method, 'local image OCR');
+    assert.match(result.summary, /No AI model/);
+    assert.deepEqual(result.rows, []);
   } finally { global.fetch = oldFetch; }
 });
