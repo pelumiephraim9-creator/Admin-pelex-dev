@@ -94,7 +94,7 @@ test('PDF and image reading fail clearly when the vision API key is unavailable'
   delete process.env.GEMINI_API_KEY;
   try {
     const pdf = JSON.parse(await reader.run({ prompt: 'File name: report.pdf' }, context(dataUrl('application/pdf', '%PDF-1.4'))));
-    assert.match(pdf.error, /OCR\/document reader service/);
+    assert.match(pdf.error, /No document vision provider is configured/);
   } finally {
     if (old !== undefined) process.env.GEMINI_API_KEY = old;
   }
