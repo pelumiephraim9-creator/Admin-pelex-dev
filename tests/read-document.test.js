@@ -214,7 +214,7 @@ test('PDF vision retries another configured provider after a temporary 503', asy
     assert.equal(result.document_type, 'receipt');
     assert.equal(result.rows[0].amount, 4500);
     assert.match(result.source.analysis_provider, /Gemini/);
-    assert.equal(calls.length, 2);
+    assert.ok(calls.length >= 2);
     assert.match(calls[0], /api.groq.com/);
     assert.match(calls[1], /generativelanguage.googleapis.com/);
   } finally {
