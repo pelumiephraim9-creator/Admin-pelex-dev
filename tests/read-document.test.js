@@ -103,7 +103,7 @@ test('digital PDFs are extracted locally without any vision API key', async () =
       doc.on('end', resolve);
       doc.on('error', reject);
     });
-    doc.font('Helvetica').fontSize(16).text('LOCAL PDF TEST TOTAL 4500', 40, 80, { lineBreak: false });
+    doc.font('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf').fontSize(16).text('LOCAL PDF TEST TOTAL 4500', 40, 80, { lineBreak: false });
     doc.end();
     await completed;
     const pdf = Buffer.concat(chunks);
