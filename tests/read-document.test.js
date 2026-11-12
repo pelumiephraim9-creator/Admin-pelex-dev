@@ -178,3 +178,49 @@ test('PPTX and ODS files expose slide text and spreadsheet cell structure', asyn
     if (old !== undefined) process.env.GEMINI_API_KEY = old;
   }
 });
+
+
+test('PDF vision retries another configured provider after a temporary 503', async () => {
+  const old = {
+    gemini: process.env.GEMINI_API_KEY, groq: process.env.GROQ_API_KEY,
+    groqVision: process.env.GROQ_VISION_MODEL, openrouter: process.env.OPENROUTER_API_KEY,
+    openrouterVision: process.env.OPENROUTER_VISION_MODELS, fetch: global.fetch
+  };
+  process.env.GEMINI_API_KEY = 'test-gemini-key';
+  process.env.GROQ_API_KEY = 'test-groq-key';
+  process.env.GROQ_VISION_MODEL = 'test-vision-model';
+  delete process.env.OPENROUTER_API_KEY;
+  delete process.env.OPENROUTER_VISION_MODELS;
+  const calls = [];
+  global.fetch = async (url, options) => {
+    calls.push(String(url));
+    if (String(url).includes('api.groq.com')) {
+      return { ok: false, status: 503, text: async () => 'temporary high demand' };
+    }
+    return {
+      ok: true, status: 200,
+      json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify({
+        document_type: 'receipt', currency: 'NGN', summary: 'Test receipt read successfully',
+        text: 'Total NGN 4500', rows: [{ date: '2026-11-12', type: 'receipt', party: 'Test Shop', amount: 4500, currency: 'NGN' }],
+        notes: 'Test fallback'
+      }) }] } }] })
+    };
+  };
+  try {
+    const result = JSON.parse(await reader.run(
+      { prompt: 'File name: test-slip.pdf' },
+      context('data:application/pdf;base64,' + Buffer.from('%PDF-1.4 test').toString('base64'))
+    ));
+    assert.equal(result.document_type, 'receipt');
+    assert.equal(result.rows[0].amount, 4500);
+    assert.match(result.source.analysis_provider, /Gemini/);
+    assert.equal(calls.length, 2);
+    assert.match(calls[0], /api.groq.com/);
+    assert.match(calls[1], /generativelanguage.googleapis.com/);
+  } finally {
+    global.fetch = old.fetch;
+    for (const [key, value] of Object.entries({ GEMINI_API_KEY: old.gemini, GROQ_API_KEY: old.groq, GROQ_VISION_MODEL: old.groqVision, OPENROUTER_API_KEY: old.openrouter, OPENROUTER_VISION_MODELS: old.openrouterVision })) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+});
