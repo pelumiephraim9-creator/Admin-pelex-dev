@@ -95,16 +95,24 @@ test('digital PDFs are extracted locally without any vision API key', async () =
   delete process.env.GEMINI_API_KEY;
   global.fetch = async () => { throw new Error('No external AI or vision API may be called'); };
   try {
-    const pdf = [
-      '%PDF-1.4',
-      '1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj',
-      '2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj',
-      '3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj',
-      '4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj',
-      '5 0 obj << /Length 55 >> stream\nBT /F1 18 Tf 20 80 Td (LOCAL PDF TEST TOTAL 4500) Tj ET\nendstream endobj',
-      'trailer << /Root 1 0 R >>',
-      '%%EOF'
-    ].join('\n');
+    const stream = 'BT /F1 18 Tf 20 80 Td (LOCAL PDF TEST TOTAL 4500) Tj ET';
+    const objects = [
+      '<< /Type /Catalog /Pages 2 0 R >>',
+      '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+      '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+      '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+      '<< /Length ' + Buffer.byteLength(stream) + ' >>\\nstream\\n' + stream + '\\nendstream'
+    ];
+    let pdf = '%PDF-1.4\\n';
+    const offsets = [0];
+    for (let i = 0; i < objects.length; i++) {
+      offsets.push(Buffer.byteLength(pdf));
+      pdf += (i + 1) + ' 0 obj\\n' + objects[i] + '\\nendobj\\n';
+    }
+    const xrefOffset = Buffer.byteLength(pdf);
+    pdf += 'xref\\n0 6\\n0000000000 65535 f \\n';
+    for (let i = 1; i < offsets.length; i++) pdf += String(offsets[i]).padStart(10, '0') + ' 00000 n \\n';
+    pdf += 'trailer\\n<< /Size 6 /Root 1 0 R >>\\nstartxref\\n' + xrefOffset + '\\n%%EOF';
     const result = JSON.parse(await reader.run({ prompt: 'File name: test.pdf' }, context('data:application/pdf;base64,' + Buffer.from(pdf).toString('base64'))));
     assert.match(result.text, /LOCAL PDF TEST TOTAL 4500/);
     assert.match(result.summary, /No AI model/);
