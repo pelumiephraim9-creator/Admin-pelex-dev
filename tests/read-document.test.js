@@ -89,15 +89,47 @@ test('unsupported legacy binary Office formats return a clear conversion instruc
   }
 });
 
-test('PDF and image reading fail clearly when the vision API key is unavailable', async () => {
-  const old = process.env.GEMINI_API_KEY;
+test('digital PDFs are extracted locally without any vision API key', async () => {
+  const oldFetch = global.fetch;
+  const oldKey = process.env.GEMINI_API_KEY;
   delete process.env.GEMINI_API_KEY;
+  global.fetch = async () => { throw new Error('No external AI or vision API may be called'); };
   try {
-    const pdf = JSON.parse(await reader.run({ prompt: 'File name: report.pdf' }, context(dataUrl('application/pdf', '%PDF-1.4'))));
-    assert.match(pdf.error, /No document vision provider is configured/);
+    const pdf = [
+      '%PDF-1.4',
+      '1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj',
+      '2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj',
+      '3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj',
+      '4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj',
+      '5 0 obj << /Length 55 >> stream\nBT /F1 18 Tf 20 80 Td (LOCAL PDF TEST TOTAL 4500) Tj ET\nendstream endobj',
+      'trailer << /Root 1 0 R >>',
+      '%%EOF'
+    ].join('\n');
+    const result = JSON.parse(await reader.run({ prompt: 'File name: test.pdf' }, context('data:application/pdf;base64,' + Buffer.from(pdf).toString('base64'))));
+    assert.match(result.text, /LOCAL PDF TEST TOTAL 4500/);
+    assert.match(result.summary, /No AI model/);
+    assert.equal(result.source.extraction_method, 'local PDF text extraction');
+    assert.deepEqual(result.rows, []);
   } finally {
-    if (old !== undefined) process.env.GEMINI_API_KEY = old;
+    global.fetch = oldFetch;
+    if (oldKey === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = oldKey;
   }
+});
+
+test('image OCR uses the local OCR path and never calls a vision provider', async () => {
+  const oldFetch = global.fetch;
+  global.fetch = async () => { throw new Error('No external vision API may be called'); };
+  try {
+    const png = Buffer.from('local-image-fixture');
+    const result = JSON.parse(await reader.run(
+      { prompt: 'File name: receipt.png' },
+      { images: ['data:image/png;base64,' + png.toString('base64')], localOcr: async () => 'RECEIPT TOTAL NGN 4500' }
+    ));
+    assert.match(result.text, /RECEIPT TOTAL NGN 4500/);
+    assert.equal(result.source.extraction_method, 'local image OCR');
+    assert.match(result.summary, /No AI model/);
+    assert.deepEqual(result.rows, []);
+  } finally { global.fetch = oldFetch; }
 });
 
 test('locally supported documents bypass Gemini even when a key is configured', async () => {
@@ -180,47 +212,14 @@ test('PPTX and ODS files expose slide text and spreadsheet cell structure', asyn
 });
 
 
-test('PDF vision retries another configured provider after a temporary 503', async () => {
-  const old = {
-    gemini: process.env.GEMINI_API_KEY, groq: process.env.GROQ_API_KEY,
-    groqVision: process.env.GROQ_VISION_MODEL, openrouter: process.env.OPENROUTER_API_KEY,
-    openrouterVision: process.env.OPENROUTER_VISION_MODELS, fetch: global.fetch
-  };
-  process.env.GEMINI_API_KEY = 'test-gemini-key';
-  process.env.GROQ_API_KEY = 'test-groq-key';
-  process.env.GROQ_VISION_MODEL = 'test-vision-model';
-  delete process.env.OPENROUTER_API_KEY;
-  delete process.env.OPENROUTER_VISION_MODELS;
-  const calls = [];
-  global.fetch = async (url, options) => {
-    calls.push(String(url));
-    if (String(url).includes('api.groq.com')) {
-      return { ok: false, status: 503, text: async () => 'temporary high demand' };
-    }
-    return {
-      ok: true, status: 200,
-      json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify({
-        document_type: 'receipt', currency: 'NGN', summary: 'Test receipt read successfully',
-        text: 'Total NGN 4500', rows: [{ date: '2026-11-12', type: 'receipt', party: 'Test Shop', amount: 4500, currency: 'NGN' }],
-        notes: 'Test fallback'
-      }) }] } }] })
-    };
-  };
+test('scanned PDF pages are passed to local OCR without an AI provider', async () => {
+  const oldFetch = global.fetch;
+  global.fetch = async () => { throw new Error('AI provider must not be called'); };
   try {
     const result = JSON.parse(await reader.run(
-      { prompt: 'File name: test-slip.pdf' },
-      context('data:application/pdf;base64,' + Buffer.from('%PDF-1.4 test').toString('base64'))
+      { prompt: 'File name: scanned-slip.pdf' },
+      { images: ['data:application/pdf;base64,' + Buffer.from('%PDF-1.4').toString('base64')], localOcr: async () => 'SCANNED RECEIPT TOTAL NGN 7500' }
     ));
-    assert.equal(result.document_type, 'receipt');
-    assert.equal(result.rows[0].amount, 4500);
-    assert.match(result.source.analysis_provider, /Gemini/);
-    assert.ok(calls.length >= 2);
-    assert.match(calls[0], /api.groq.com/);
-    assert.ok(calls.some(url => /generativelanguage.googleapis.com/.test(url)));
-  } finally {
-    global.fetch = old.fetch;
-    for (const [key, value] of Object.entries({ GEMINI_API_KEY: old.gemini, GROQ_API_KEY: old.groq, GROQ_VISION_MODEL: old.groqVision, OPENROUTER_API_KEY: old.openrouter, OPENROUTER_VISION_MODELS: old.openrouterVision })) {
-      if (value === undefined) delete process.env[key]; else process.env[key] = value;
-    }
-  }
+    assert.match(result.error, /Invalid PDF|Invalid PDF structure|The PDF file is empty|Invalid PDF/);
+  } finally { global.fetch = oldFetch; }
 });
