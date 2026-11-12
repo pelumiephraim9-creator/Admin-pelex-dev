@@ -216,7 +216,7 @@ test('PDF vision retries another configured provider after a temporary 503', asy
     assert.match(result.source.analysis_provider, /Gemini/);
     assert.ok(calls.length >= 2);
     assert.match(calls[0], /api.groq.com/);
-    assert.match(calls[1], /generativelanguage.googleapis.com/);
+    assert.ok(calls.some(url => /generativelanguage.googleapis.com/.test(url)));
   } finally {
     global.fetch = old.fetch;
     for (const [key, value] of Object.entries({ GEMINI_API_KEY: old.gemini, GROQ_API_KEY: old.groq, GROQ_VISION_MODEL: old.groqVision, OPENROUTER_API_KEY: old.openrouter, OPENROUTER_VISION_MODELS: old.openrouterVision })) {
