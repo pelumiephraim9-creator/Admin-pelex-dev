@@ -85,32 +85,60 @@ module.exports={
     // The result remains review-only; no ledger rows are created by this reader.
     return JSON.stringify({document_type:ext||'document',currency:null,summary:'Text extracted locally. No AI model was used.',text:localText,rows:[],notes:'Extracted sections: '+extracted.sections.join(', '),source:{file_name:name,extension:ext,bytes:a.bytes.length,sections:extracted.sections}});
    }
-   const parts=[{text:PROMPT+'\nFILE NAME: '+clip(name||'uploaded document',160)}];
-   parts.push({inline_data:{mime_type:mime,data:a.bytes.toString('base64')}});
-   if(!E.GEMINI_API_KEY)return fail('PDF and image reading requires an OCR/document reader service. Text and Office files are extracted locally without AI.');
-   // Gemini 2.5 generation access is restricted for some projects and can return 404.
-   // Try the configured model first, then stable current models as fallbacks.
-   const models=[...new Set([E.GEMINI_TEXT_MODEL,'gemini-3.8-flash','gemini-3.5-flash-lite'].filter(Boolean))];
-   let payload=null,lastStatus=0,lastMessage='';
-   for(const model of models){
+   const promptText=PROMPT+'\nFILE NAME: '+clip(name||'uploaded document',160);
+   const imageData='data:'+mime+';base64,'+a.bytes.toString('base64');
+   // Independent provider fallback for PDF/image reading. A busy or unavailable
+   // Gemini model must not prevent the same document being read by another
+   // configured vision provider.
+   const candidates=[];
+   const groqModels=[E.GROQ_VISION_MODEL,'meta-llama/llama-4-scout-17b-16e-instruct'].filter(Boolean);
+   if(E.GROQ_API_KEY)for(const model of [...new Set(groqModels)])candidates.push({
+    name:'Groq '+model,url:(E.GROQ_BASE||'https://api.groq.com/openai/v1').replace(/\/+$/,'')+'/chat/completions',
+    key:E.GROQ_API_KEY,model,headers:{}
+   });
+   const openRouterModels=String(E.OPENROUTER_VISION_MODELS||'').split(',').map(x=>x.trim()).filter(Boolean);
+   if(E.OPENROUTER_API_KEY)for(const model of openRouterModels)candidates.push({
+    name:'OpenRouter '+model,url:(E.OPENROUTER_BASE||'https://openrouter.ai/api/v1').replace(/\/+$/,'')+'/chat/completions',
+    key:E.OPENROUTER_API_KEY,model,headers:{'HTTP-Referer':'https://pelex.tech','X-Title':'Pelex'}
+   });
+   const geminiModels=[E.GEMINI_TEXT_MODEL,E.GEMINI_MODEL,'gemini-2.5-flash','gemini-2.0-flash'].filter(Boolean);
+   if(E.GEMINI_API_KEY)for(const model of [...new Set(geminiModels)])candidates.push({
+    name:'Gemini '+model,url:(E.GEMINI_API_BASE||'https://generativelanguage.googleapis.com/v1beta').replace(/\/+$/,'')+'/models/'+model+':generateContent',
+    key:E.GEMINI_API_KEY,model,kind:'gemini'
+   });
+   if(!candidates.length)return fail('No document vision provider is configured. Configure GEMINI_API_KEY, GROQ_API_KEY with GROQ_VISION_MODEL, or OPENROUTER_API_KEY with OPENROUTER_VISION_MODELS.');
+   let out=null,lastStatus=0,lastMessage='',usedProvider='';
+   for(const provider of candidates){
     const timer=ctx&&ctx.withTimeout?ctx.withTimeout(120000):{signal:undefined,done:()=>{}};
     let response;
     try{
-     response=await fetch((E.GEMINI_API_BASE||'https://generativelanguage.googleapis.com/v1beta')+'/models/'+model+':generateContent',{
+     const body=provider.kind==='gemini'
+      ?{contents:[{parts:[{text:promptText},{inline_data:{mime_type:mime,data:a.bytes.toString('base64')}}]}],generationConfig:{responseMimeType:'application/json',temperature:0}}
+      :{model:provider.model,temperature:0,max_tokens:12000,response_format:{type:'json_object'},messages:[{role:'user',content:[{type:'text',text:promptText},{type:'image_url',image_url:{url:imageData}}]}]};
+     response=await fetch(provider.url,{
       method:'POST',signal:timer.signal,
-      headers:{'x-goog-api-key':E.GEMINI_API_KEY,'Content-Type':'application/json'},
-      body:JSON.stringify({contents:[{parts}],generationConfig:{responseMimeType:'application/json',temperature:0}})
+      headers:{...(provider.kind==='gemini'?{'x-goog-api-key':provider.key}:{Authorization:'Bearer '+provider.key,...provider.headers}),'Content-Type':'application/json'},
+      body:JSON.stringify(body)
      });
-    }finally{timer.done()}
-    if(response.ok){payload=await response.json();break}
-    lastStatus=response.status;lastMessage=clip(await response.text().catch(()=>''),300);
-    if(response.status===404||response.status===429||response.status>=500)continue;
-    return fail('Document analysis service returned HTTP '+response.status+'. '+lastMessage);
+     if(!response.ok){
+      lastStatus=response.status;lastMessage=clip(await response.text().catch(()=>''),300);
+      // 401/403 indicates a key or permission problem; continue to another
+      // configured provider rather than failing the upload immediately.
+      continue;
+     }
+     const payload=await response.json();
+     const raw=provider.kind==='gemini'
+      ?(((payload&&payload.candidates&&payload.candidates[0]||{}).content||{}).parts||[]).map(p=>p.text||'').join('')
+      :(typeof payload.choices?.[0]?.message?.content==='string'?payload.choices[0].message.content:(payload.choices?.[0]?.message?.content||[]).map(p=>p.text||'').join(''));
+     const parsed=jsonModel(raw);
+     if(parsed){out=parsed;usedProvider=provider.name;break;}
+     lastStatus=200;lastMessage='The provider returned a response that was not valid JSON.';
+    }catch(error){lastMessage=clip(error&&error.message||'Provider request failed.',300);}
+    finally{timer.done();}
    }
-   if(!payload)return fail('Document analysis service could not find an available model (last HTTP '+lastStatus+'). '+lastMessage);
-   const candidate=payload&&payload.candidates&&payload.candidates[0],raw=(((candidate||{}).content||{}).parts||[]).map(p=>p.text||'').join(''),out=jsonModel(raw);if(!out)return fail('Document reader returned an invalid result.');
+   if(!out)return fail('Document analysis could not complete: all configured vision providers were unavailable or returned invalid output (last HTTP '+(lastStatus||'network')+'). '+lastMessage);
    const rows=Array.isArray(out.rows)?out.rows.filter(r=>r&&r.amount!=null&&Number.isFinite(Number(r.amount))&&Number(r.amount)>0).map(r=>({date:r.date||null,type:r.type||'other',party:r.party||null,amount:Number(r.amount),currency:r.currency||null,due:r.due||null,category:r.category||null})):[];
-   return JSON.stringify({document_type:clip(out.document_type||ext||'document',80),currency:out.currency||null,summary:clip(out.summary||'',2000),text:clip(out.text||(extracted&&extracted.text)||'',24000),rows,notes:clip(out.notes||'',1600),source:{file_name:name,extension:ext,bytes:a.bytes.length,sections:extracted?extracted.sections:[]}});
+   return JSON.stringify({document_type:clip(out.document_type||ext||'document',80),currency:out.currency||null,summary:clip(out.summary||'',2000),text:clip(out.text||(extracted&&extracted.text)||'',24000),rows,notes:clip(out.notes||'',1600),source:{file_name:name,extension:ext,bytes:a.bytes.length,sections:extracted?extracted.sections:[],analysis_provider:usedProvider}});
   }catch(e){return fail(e&&e.message||'The document could not be read.')}
  }
 };
