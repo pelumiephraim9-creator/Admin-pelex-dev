@@ -10,5 +10,10 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^0.1.100",
+    "pdfjs-dist": "3.11.174",
+    "tesseract.js": "^5.1.1"
   }
 }
