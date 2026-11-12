@@ -56,7 +56,7 @@ test('text documents are extracted locally without saving or importing ledger ro
     assert.equal(result.document_type, 'txt');
     assert.match(result.text, /Quarterly report/);
     assert.deepEqual(result.rows, []);
-    assert.match(result.summary, /Text extracted locally/);
+    assert.match(result.summary, /Content extracted locally/);
   } finally {
     if (old !== undefined) process.env.GEMINI_API_KEY = old;
   }
