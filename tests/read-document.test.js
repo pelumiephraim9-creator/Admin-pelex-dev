@@ -100,6 +100,26 @@ test('PDF and image reading fail clearly when the vision API key is unavailable'
   }
 });
 
+test('locally supported documents bypass Gemini even when a key is configured', async () => {
+  const oldKey = process.env.GEMINI_API_KEY;
+  const oldFetch = global.fetch;
+  process.env.GEMINI_API_KEY = 'test-key';
+  global.fetch = async () => { throw new Error('Gemini must not be called for local extraction'); };
+  try {
+    const result = JSON.parse(await reader.run(
+      { prompt: 'File name: sales.csv' },
+      context(dataUrl('text/csv', 'Date,Item,Amount\\n2026-11-12,Inventory,4500'))
+    ));
+    assert.match(result.text, /Inventory,4500/);
+    assert.match(result.summary, /No AI model was used/);
+    assert.deepEqual(result.rows, []);
+  } finally {
+    global.fetch = oldFetch;
+    if (oldKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = oldKey;
+  }
+});
+
 test('DOCX files are unpacked and their paragraph text is extracted locally', async () => {
   const old = process.env.GEMINI_API_KEY;
   delete process.env.GEMINI_API_KEY;
