@@ -73,7 +73,9 @@ async function ocrImage(bytes, mime) {
 async function readPdf(bytes, injectedOcr) {
  const pdfjs=require('pdfjs-dist/legacy/build/pdf.js');
  const {createCanvas}=require('@napi-rs/canvas');
- const task=pdfjs.getDocument({data:new Uint8Array(bytes),disableWorker:true,useSystemFonts:true});
+ const path=require('node:path');
+ const standardFontDataUrl=path.join(path.dirname(require.resolve('pdfjs-dist/package.json')),'standard_fonts')+path.sep;
+ const task=pdfjs.getDocument({data:new Uint8Array(bytes),disableWorker:true,useSystemFonts:true,standardFontDataUrl});
  const doc=await task.promise;
  try {
   const pageCount=Number(doc.numPages||0);
