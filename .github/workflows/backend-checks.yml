@@ -18,6 +18,6 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Check JavaScript syntax
         run: |
-          find . -path './.git' -prune -o -name '*.js' -type f -print0 | xargs -0 -n1 node --check
+          find . -type d \( -name .git -o -name node_modules \) -prune -o -type f -name '*.js' -print0 | xargs -0 -r -n1 node --check
       - name: Run backend foundation tests
         run: npm test
