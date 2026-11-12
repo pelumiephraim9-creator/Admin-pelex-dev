@@ -85,10 +85,27 @@ module.exports={
     if(!extracted)return fail('PDF and image reading requires GEMINI_API_KEY on the backend. Text and Office files can still be extracted locally.');
     return JSON.stringify({document_type:ext||'document',currency:null,summary:'Text extracted locally. AI summary and transaction classification require GEMINI_API_KEY.',text:clip(extracted.text,24000),rows:[],notes:'Extracted sections: '+extracted.sections.join(', '),source:{file_name:name,extension:ext,bytes:a.bytes.length,sections:extracted.sections}});
    }
-   const timer=ctx&&ctx.withTimeout?ctx.withTimeout(120000):{signal:undefined,done:()=>{}};let response;
-   try{response=await fetch((E.GEMINI_API_BASE||'https://generativelanguage.googleapis.com/v1beta')+'/models/'+(E.GEMINI_TEXT_MODEL||'gemini-2.5-flash')+':generateContent',{method:'POST',signal:timer.signal,headers:{'x-goog-api-key':E.GEMINI_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts}],generationConfig:{responseMimeType:'application/json',temperature:0}})})}finally{timer.done()}
-   if(!response.ok)return fail('Document analysis service returned HTTP '+response.status+'.');
-   const payload=await response.json(),candidate=payload&&payload.candidates&&payload.candidates[0],raw=(((candidate||{}).content||{}).parts||[]).map(p=>p.text||'').join(''),out=jsonModel(raw);if(!out)return fail('Document reader returned an invalid result.');
+   // Gemini 2.5 generation access is restricted for some projects and can return 404.
+   // Try the configured model first, then stable current models as fallbacks.
+   const models=[...new Set([E.GEMINI_TEXT_MODEL,'gemini-3.8-flash','gemini-3.5-flash-lite'].filter(Boolean))];
+   let payload=null,lastStatus=0,lastMessage='';
+   for(const model of models){
+    const timer=ctx&&ctx.withTimeout?ctx.withTimeout(120000):{signal:undefined,done:()=>{}};
+    let response;
+    try{
+     response=await fetch((E.GEMINI_API_BASE||'https://generativelanguage.googleapis.com/v1beta')+'/models/'+model+':generateContent',{
+      method:'POST',signal:timer.signal,
+      headers:{'x-goog-api-key':E.GEMINI_API_KEY,'Content-Type':'application/json'},
+      body:JSON.stringify({contents:[{parts}],generationConfig:{responseMimeType:'application/json',temperature:0}})
+     });
+    }finally{timer.done()}
+    if(response.ok){payload=await response.json();break}
+    lastStatus=response.status;lastMessage=clip(await response.text().catch(()=>''),300);
+    if(response.status===404||response.status===429||response.status>=500)continue;
+    return fail('Document analysis service returned HTTP '+response.status+'. '+lastMessage);
+   }
+   if(!payload)return fail('Document analysis service could not find an available model (last HTTP '+lastStatus+'). '+lastMessage);
+   const candidate=payload&&payload.candidates&&payload.candidates[0],raw=(((candidate||{}).content||{}).parts||[]).map(p=>p.text||'').join(''),out=jsonModel(raw);if(!out)return fail('Document reader returned an invalid result.');
    const rows=Array.isArray(out.rows)?out.rows.filter(r=>r&&r.amount!=null&&Number.isFinite(Number(r.amount))&&Number(r.amount)>0).map(r=>({date:r.date||null,type:r.type||'other',party:r.party||null,amount:Number(r.amount),currency:r.currency||null,due:r.due||null,category:r.category||null})):[];
    return JSON.stringify({document_type:clip(out.document_type||ext||'document',80),currency:out.currency||null,summary:clip(out.summary||'',2000),text:clip(out.text||(extracted&&extracted.text)||'',24000),rows,notes:clip(out.notes||'',1600),source:{file_name:name,extension:ext,bytes:a.bytes.length,sections:extracted?extracted.sections:[]}});
   }catch(e){return fail(e&&e.message||'The document could not be read.')}
