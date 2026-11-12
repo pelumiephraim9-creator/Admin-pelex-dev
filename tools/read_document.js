@@ -101,7 +101,12 @@ module.exports={
     name:'OpenRouter '+model,url:(E.OPENROUTER_BASE||'https://openrouter.ai/api/v1').replace(/\/+$/,'')+'/chat/completions',
     key:E.OPENROUTER_API_KEY,model,headers:{'HTTP-Referer':'https://pelex.tech','X-Title':'Pelex'}
    });
-   const geminiModels=[E.GEMINI_TEXT_MODEL,E.GEMINI_MODEL,'gemini-2.5-flash','gemini-2.0-flash'].filter(Boolean);
+   // Skip retired model IDs even if an old environment variable still names them.
+   // Prefer the current Gemini Flash model and normalize optional "models/" prefixes.
+   const normalizeGeminiModel=value=>String(value||'').trim().replace(/^models\//,'');
+   const geminiModels=[E.GEMINI_VISION_MODEL,E.GEMINI_TEXT_MODEL,E.GEMINI_MODEL,'gemini-3.8-flash','gemini-2.5-flash']
+    .map(normalizeGeminiModel).filter(Boolean)
+    .filter(model=>!/^gemini-2\.0-flash(?:-|$)/i.test(model));
    if(E.GEMINI_API_KEY)for(const model of [...new Set(geminiModels)])candidates.push({
     name:'Gemini '+model,url:(E.GEMINI_API_BASE||'https://generativelanguage.googleapis.com/v1beta').replace(/\/+$/,'')+'/models/'+model+':generateContent',
     key:E.GEMINI_API_KEY,model,kind:'gemini'
