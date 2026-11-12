@@ -78,13 +78,16 @@ module.exports={
     if(!['application/pdf','image/png','image/jpeg','image/webp','image/heic','image/heif','image/tiff'].includes(mime))return fail('Unsupported image type: '+mime);
    }else if(['doc','ppt','xls'].includes(ext))return fail('Legacy Office files must be saved as DOCX, PPTX, XLSX or PDF before reading.');
    else return fail('Unsupported file type. Try PDF, DOCX, XLSX, PPTX, ODT, ODS, CSV, TSV, TXT, RTF, HTML, XML, JSON, PNG, JPG, WebP, HEIC or TIFF.');
-   const parts=[{text:PROMPT+'\nFILE NAME: '+clip(name||'uploaded document',160)}];
-   if(extracted){const text=clip(extracted.text,60000);if(!text.trim())return fail('The file opened, but no readable text was found.');parts.push({text:'EXTRACTED DOCUMENT CONTENT:\n'+text})}
-   else parts.push({inline_data:{mime_type:mime,data:a.bytes.toString('base64')}});
-   if(!E.GEMINI_API_KEY){
-    if(!extracted)return fail('PDF and image reading requires GEMINI_API_KEY on the backend. Text and Office files can still be extracted locally.');
-    return JSON.stringify({document_type:ext||'document',currency:null,summary:'Text extracted locally. AI summary and transaction classification require GEMINI_API_KEY.',text:clip(extracted.text,24000),rows:[],notes:'Extracted sections: '+extracted.sections.join(', '),source:{file_name:name,extension:ext,bytes:a.bytes.length,sections:extracted.sections}});
+   if(extracted){
+    const localText=clip(extracted.text,24000);
+    if(!localText.trim())return fail('The file opened, but no readable text was found.');
+    // Local-first extraction: ordinary text and Office documents never depend on Gemini.
+    // The result remains review-only; no ledger rows are created by this reader.
+    return JSON.stringify({document_type:ext||'document',currency:null,summary:'Text extracted locally. No AI model was used.',text:localText,rows:[],notes:'Extracted sections: '+extracted.sections.join(', '),source:{file_name:name,extension:ext,bytes:a.bytes.length,sections:extracted.sections}});
    }
+   const parts=[{text:PROMPT+'\nFILE NAME: '+clip(name||'uploaded document',160)}];
+   parts.push({inline_data:{mime_type:mime,data:a.bytes.toString('base64')}});
+   if(!E.GEMINI_API_KEY)return fail('PDF and image reading requires an OCR/document reader service. Text and Office files are extracted locally without AI.');
    // Gemini 2.5 generation access is restricted for some projects and can return 404.
    // Try the configured model first, then stable current models as fallbacks.
    const models=[...new Set([E.GEMINI_TEXT_MODEL,'gemini-3.8-flash','gemini-3.5-flash-lite'].filter(Boolean))];
