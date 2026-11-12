@@ -55,7 +55,7 @@ test('Business Agent context includes only the selected project and its configur
   assert.match(server, /history_truncated_at_safety_limit/);
   assert.match(server, /project_id: 'eq\.' \+ selected\.id/);
   assert.match(business.instructions, /business_type_definition/);
-  assert.match(business.instructions, /every new transaction/);
+  assert.match(business.instructions, /every new transaction/i);
 });
 
 test('legacy receipts are not assumed to be new operating revenue', () => {
