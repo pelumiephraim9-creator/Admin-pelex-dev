@@ -96,14 +96,14 @@ test('digital PDFs are extracted locally without any vision API key', async () =
   global.fetch = async () => { throw new Error('No external AI or vision API may be called'); };
   try {
     const PDFDocument = require('pdfkit');
-    const doc = new PDFDocument({ margin: 40 });
+    const doc = new PDFDocument({ margin: 40, compress: false, autoFirstPage: true });
     const chunks = [];
     doc.on('data', chunk => chunks.push(chunk));
     const completed = new Promise((resolve, reject) => {
       doc.on('end', resolve);
       doc.on('error', reject);
     });
-    doc.fontSize(16).text('LOCAL PDF TEST TOTAL 4500');
+    doc.font('Helvetica').fontSize(16).text('LOCAL PDF TEST TOTAL 4500', 40, 80, { lineBreak: false });
     doc.end();
     await completed;
     const pdf = Buffer.concat(chunks);
