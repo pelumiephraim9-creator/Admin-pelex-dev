@@ -39,7 +39,6 @@ body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:"Seg
 button,input,textarea,select{font:inherit;color:inherit}
 .app{display:grid;grid-template-columns:272px 1fr;height:100%;transition:grid-template-columns .22s ease}
 @media(min-width:821px) and (pointer:fine){#instNavDesk{display:none!important}.app>main{grid-column:2;min-width:0}.app.collapsed{grid-template-columns:0 1fr}.app.collapsed aside{margin-left:-272px;opacity:0;pointer-events:none}.reopen{position:fixed;left:10px;top:14px;z-index:5;display:none;background:var(--panel);border:1px solid var(--line);box-shadow:0 2px 10px rgba(0,0,0,.08)}.app.collapsed .reopen{display:grid}}
-@media(max-width:820px),(pointer:coarse){.reopen{display:none!important}}
 aside{position:fixed;left:0;top:0;width:272px;box-sizing:border-box;height:100vh;height:100dvh;background:linear-gradient(180deg,var(--panel),var(--soft));border-right:1px solid var(--line);display:flex;flex-direction:column;padding:14px 12px;gap:4px;overflow-y:auto;box-shadow:1px 0 0 rgba(0,0,0,.02);transition:margin-left .22s ease,opacity .18s ease;z-index:5}
 .brand{white-space:nowrap;display:flex;align-items:center;gap:8px;padding:2px 8px 12px;font-weight:700;font-size:17px}
 .logo{width:30px;height:30px;border-radius:9px;background:var(--btn);color:var(--btnink);display:grid;place-items:center;font-weight:800}
@@ -2629,23 +2628,15 @@ function agentMeta(){var m=curUser?{userId:curUser.id,userName:userDisplay(curUs
 function dbOk(){return !!(sb&&signedIn&&curUser)}
 function syncWelcome(){var cb=chat.querySelector('.chatbody');if(cb)cb.style.display=chat.querySelector('.msg')?'none':''}
 (function(){
+  // Keep the primary navigation visible by default. The sidebar must not
+  // disappear automatically when a chat message is added.
   var app=document.querySelector('.app');
-  var mq=window.matchMedia('(min-width:821px) and (pointer:fine)');
-  var manual=null; // null = no manual override yet, true/false = user chose
-  function setCollapsed(c){app.classList.toggle('collapsed',c)}
-  function onMq(){if(!mq.matches){app.classList.remove('collapsed')}}
-  if(mq.addEventListener)mq.addEventListener('change',onMq);else if(mq.addListener)mq.addListener(onMq);
-  onMq();
-  document.getElementById('sideCollapse').addEventListener('click',function(){manual=true;setCollapsed(true)});
-  document.getElementById('sideReopen').addEventListener('click',function(){manual=false;setCollapsed(false)});
-  var _sw=syncWelcome;
-  syncWelcome=function(){
-    _sw();
-    if(!mq.matches)return; // mobile keeps its own overlay behaviour, untouched
-    if(manual!==null)return; // user already took control this session
-    var hasMsgs=!!chat.querySelector('.msg');
-    setCollapsed(hasMsgs);
-  };
+  if(!app)return;
+  app.classList.remove('collapsed');
+  var collapse=document.getElementById('sideCollapse');
+  var reopen=document.getElementById('sideReopen');
+  if(collapse)collapse.addEventListener('click',function(){app.classList.add('collapsed')});
+  if(reopen)reopen.addEventListener('click',function(){app.classList.remove('collapsed')});
 })();
 
 var _add=add;add=function(){var r=_add.apply(this,arguments);syncWelcome();return r};
