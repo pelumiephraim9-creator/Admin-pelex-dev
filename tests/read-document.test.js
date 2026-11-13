@@ -95,18 +95,24 @@ test('digital PDFs are extracted locally without any vision API key', async () =
   delete process.env.GEMINI_API_KEY;
   global.fetch = async () => { throw new Error('No external AI or vision API may be called'); };
   try {
-    const PDFDocument = require('pdfkit');
-    const doc = new PDFDocument({ margin: 40, compress: false, autoFirstPage: true });
-    const chunks = [];
-    doc.on('data', chunk => chunks.push(chunk));
-    const completed = new Promise((resolve, reject) => {
-      doc.on('end', resolve);
-      doc.on('error', reject);
-    });
-    doc.font('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf').fontSize(16).text('LOCAL PDF TEST TOTAL 4500', 40, 80, { lineBreak: false });
-    doc.end();
-    await completed;
-    const pdf = Buffer.concat(chunks);
+    const objects = [
+      '<< /Type /Catalog /Pages 2 0 R >>',
+      '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+      '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+      '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
+      '<< /Length 68 >>\\nstream\\nBT /F1 18 Tf 50 740 Td (LOCAL PDF TEST TOTAL 4500) Tj ET\\nendstream'
+    ];
+    let pdfText = '%PDF-1.4\\n';
+    const offsets = [0];
+    for (let i = 0; i < objects.length; i++) {
+      offsets.push(Buffer.byteLength(pdfText, 'binary'));
+      pdfText += (i + 1) + ' 0 obj\\n' + objects[i] + '\\nendobj\\n';
+    }
+    const xrefOffset = Buffer.byteLength(pdfText, 'binary');
+    pdfText += 'xref\\n0 6\\n0000000000 65535 f \\n';
+    for (let i = 1; i < offsets.length; i++) pdfText += String(offsets[i]).padStart(10, '0') + ' 00000 n \\n';
+    pdfText += 'trailer\\n<< /Size 6 /Root 1 0 R >>\\nstartxref\\n' + xrefOffset + '\\n%%EOF';
+    const pdf = Buffer.from(pdfText, 'binary');
     const result = JSON.parse(await reader.run(
       { prompt: 'File name: test.pdf' },
       context('data:application/pdf;base64,' + pdf.toString('base64'))
