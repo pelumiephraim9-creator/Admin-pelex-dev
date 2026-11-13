@@ -145,7 +145,7 @@ test('locally supported documents bypass Gemini even when a key is configured', 
   try {
     const result = JSON.parse(await reader.run(
       { prompt: 'File name: sales.csv' },
-      context(dataUrl('text/csv', 'Date,Item,Amount\\n2026-11-12,Inventory,4500'))
+      context(dataUrl('text/csv', 'Date,Item,Amount\n2026-11-12,Inventory,4500'))
     ));
     assert.match(result.text, /Inventory,4500/);
     assert.match(result.summary, /No AI model/);
