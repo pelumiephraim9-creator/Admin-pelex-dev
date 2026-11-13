@@ -111,6 +111,58 @@ async function readImage(bytes,mime,injectedOcr) {
  if(!text)throw Error('Local OCR could not find readable text in this image. Try a clearer, well-lit image.');
  return {text,method:'local image OCR',pages:1,ocrPages:1};
 }
+
+function amountValue(value) {
+ const n=Number(String(value||'').replace(/[,\s₦NGN]/gi,''));
+ return Number.isFinite(n)?n:null;
+}
+function extractTransaction(text) {
+ const lines=String(text||'').replace(/\r/g,'').split(/\n+/).map(x=>x.replace(/\s+/g,' ').trim()).filter(Boolean);
+ const all=lines.join('\n');
+ const pick=(re)=>{const m=all.match(re);return m?String(m[1]||'').trim():null};
+ const date=pick(/\bDate\s*:\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4}|\d{4}-\d{2}-\d{2})/i);
+ const reference=pick(/(?:Slip\s+reference|Receipt\s*\/\s*reference|Reference|Ref(?:erence)?\s*(?:No\.?|#)?)\s*:\s*([A-Z0-9][A-Z0-9-]*)/i);
+ const totalRaw=pick(/\bTotal\s*:\s*(?:NGN|₦)?\s*([\d,]+(?:\.\d{1,2})?)/i);
+ const subtotalRaw=pick(/\bSubtotal\s*:\s*(?:NGN|₦)?\s*([\d,]+(?:\.\d{1,2})?)/i);
+ const paymentMethod=pick(/\bPayment\s+method\s*:\s*([A-Za-z -]+)/i);
+ const status=pick(/\bStatus\s*:\s*(Paid|Unpaid|Pending|Partially\s+paid|Refunded|Void)/i);
+ const businessType=pick(/\bBusiness\s+type\s*:\s*([^\n]+)/i);
+ const header=lines.slice(0,4).join(' ').toLowerCase();
+ const full=all.toLowerCase();
+ let transactionType='document';
+ if (/\b(lending|loan principal|principal disbursed|principal repaid)\b/.test(full)) transactionType='loan_activity';
+ else if (/\b(member contribution|savings contribution|cooperative contribution)\b/.test(full)) transactionType='member_contribution';
+ else if (/\b(rent payment|rental income|lease payment)\b/.test(full)) transactionType='rent';
+ else if (/\b(tuition|school fees)\b/.test(full)) transactionType='tuition';
+ else if (/\b(production cost|manufacturing cost|raw materials)\b/.test(full)) transactionType='production_cost';
+ else if (/\b(project cost|construction cost)\b/.test(full)) transactionType='project_cost';
+ else if (/\b(sales receipt|retail sale|sales transaction|receipt)\b/.test(header)) transactionType='sale';
+ const rows=[];
+ for (const line of lines) {
+  if (/^(description|item)\b/i.test(line) || /^(subtotal|total|payment method|status|currency|receipt|slip reference|date|business type)\b/i.test(line)) continue;
+  const m=line.match(/^(.+?)\s+(\d+(?:\.\d+)?)\s+(?:NGN\s*|₦\s*)?([\d,]+(?:\.\d{1,2})?)\s+(?:NGN\s*|₦\s*)?([\d,]+(?:\.\d{1,2})?)$/i);
+  if (!m) continue;
+  const description=m[1].trim();
+  if (/^(subtotal|total|tax|vat|discount)\b/i.test(description)) continue;
+  rows.push({description,quantity:Number(m[2]),unit_price:amountValue(m[3]),line_total:amountValue(m[4]),currency:/\bNGN\b|₦/i.test(line+' '+all.slice(0,300))?'NGN':null});
+ }
+ const currency=/\bNGN\b|₦/.test(all)?'NGN':null;
+ const total=amountValue(totalRaw),subtotal=amountValue(subtotalRaw);
+ const hasTransactionEvidence=rows.length>0||!!(reference&&total!==null);
+ if(!hasTransactionEvidence)return {transaction:null,rows:[]};
+ return {
+  transaction:{
+   date,reference,transaction_type:transactionType,
+   business_type:businessType,currency,total,subtotal,
+   payment_method:paymentMethod?paymentMethod.trim():null,
+   status:status?status.trim().toLowerCase():null,
+   customer:pick(/\b(Walk-in customer|Customer\s*:\s*[^\n]+)/i),
+   review_required:true,auto_saved:false
+  },
+  rows
+ };
+}
+
 module.exports={
  name:'read_document',
  description:'Read business documents locally, including PDF text, scanned PDFs and images. Extracted text is returned for review; nothing is imported or saved.',
@@ -140,11 +192,12 @@ module.exports={
    else return fail('Unsupported file type. Try PDF, DOCX, XLSX, PPTX, ODT, ODS, CSV, TSV, TXT, RTF, HTML, XML, JSON, PNG, JPG, WebP, HEIC or TIFF.');
    const localText=clip(extracted&&extracted.text,24000);
    if(!localText.trim())return fail('The file opened, but no readable text was found.');
+   const structured=extractTransaction(localText);
    return JSON.stringify({
-    document_type:ext|| (mime==='application/pdf'?'pdf':'image'),currency:null,
-    summary:'Content extracted locally. No AI model or external vision API was used.',
-    text:localText,rows:[],
-    notes:(extracted.method||'local extraction')+'; '+(extracted.pages||1)+' page(s) processed. Review extracted content before using it.',
+    document_type:ext|| (mime==='application/pdf'?'pdf':'image'),currency:structured.transaction&&structured.transaction.currency||null,
+    summary:structured.transaction?'Document extracted locally. '+structured.rows.length+' line item(s) detected; verify the fields and confirm before saving. No AI model or external vision API was used.':'Content extracted locally. No AI model or external vision API was used.',
+    text:localText,transaction:structured.transaction,rows:structured.rows,
+    notes:(extracted.method||'local extraction')+'; '+(extracted.pages||1)+' page(s) processed. '+(structured.transaction?'Transaction details and line items are candidates for review only; nothing was saved.':'Review extracted content before using it.'),
     source:{file_name:name,extension:ext,bytes:a.bytes.length,sections:extracted.sections||[],extraction_method:extracted.method||'local',pages:extracted.pages||1,ocr_pages:extracted.ocrPages||0}
    });
   }catch(e){return fail(e&&e.message||'The document could not be read locally.');}
