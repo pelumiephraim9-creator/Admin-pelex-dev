@@ -2629,15 +2629,23 @@ function agentMeta(){var m=curUser?{userId:curUser.id,userName:userDisplay(curUs
 function dbOk(){return !!(sb&&signedIn&&curUser)}
 function syncWelcome(){var cb=chat.querySelector('.chatbody');if(cb)cb.style.display=chat.querySelector('.msg')?'none':''}
 (function(){
-  // Keep the primary navigation visible by default. The sidebar must not
-  // disappear automatically when a chat message is added.
   var app=document.querySelector('.app');
-  if(!app)return;
-  app.classList.remove('collapsed');
-  var collapse=document.getElementById('sideCollapse');
-  var reopen=document.getElementById('sideReopen');
-  if(collapse)collapse.addEventListener('click',function(){app.classList.add('collapsed')});
-  if(reopen)reopen.addEventListener('click',function(){app.classList.remove('collapsed')});
+  var mq=window.matchMedia('(min-width:821px) and (pointer:fine)');
+  var manual=null; // null = no manual override yet, true/false = user chose
+  function setCollapsed(c){app.classList.toggle('collapsed',c)}
+  function onMq(){if(!mq.matches){app.classList.remove('collapsed')}}
+  if(mq.addEventListener)mq.addEventListener('change',onMq);else if(mq.addListener)mq.addListener(onMq);
+  onMq();
+  document.getElementById('sideCollapse').addEventListener('click',function(){manual=true;setCollapsed(true)});
+  document.getElementById('sideReopen').addEventListener('click',function(){manual=false;setCollapsed(false)});
+  var _sw=syncWelcome;
+  syncWelcome=function(){
+    _sw();
+    if(!mq.matches)return; // mobile keeps its own overlay behaviour, untouched
+    if(manual!==null)return; // user already took control this session
+    var hasMsgs=!!chat.querySelector('.msg');
+    setCollapsed(hasMsgs);
+  };
 })();
 
 var _add=add;add=function(){var r=_add.apply(this,arguments);syncWelcome();return r};
