@@ -100,18 +100,18 @@ test('digital PDFs are extracted locally without any vision API key', async () =
       '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
       '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
       '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
-      '<< /Length 68 >>\\nstream\\nBT /F1 18 Tf 50 740 Td (LOCAL PDF TEST TOTAL 4500) Tj ET\\nendstream'
+      '<< /Length 68 >>\nstream\nBT /F1 18 Tf 50 740 Td (LOCAL PDF TEST TOTAL 4500) Tj ET\nendstream'
     ];
-    let pdfText = '%PDF-1.4\\n';
+    let pdfText = '%PDF-1.4\n';
     const offsets = [0];
     for (let i = 0; i < objects.length; i++) {
       offsets.push(Buffer.byteLength(pdfText, 'binary'));
-      pdfText += (i + 1) + ' 0 obj\\n' + objects[i] + '\\nendobj\\n';
+      pdfText += (i + 1) + ' 0 obj\n' + objects[i] + '\nendobj\n';
     }
     const xrefOffset = Buffer.byteLength(pdfText, 'binary');
-    pdfText += 'xref\\n0 6\\n0000000000 65535 f \\n';
-    for (let i = 1; i < offsets.length; i++) pdfText += String(offsets[i]).padStart(10, '0') + ' 00000 n \\n';
-    pdfText += 'trailer\\n<< /Size 6 /Root 1 0 R >>\\nstartxref\\n' + xrefOffset + '\\n%%EOF';
+    pdfText += 'xref\n0 6\n0000000000 65535 f \n';
+    for (let i = 1; i < offsets.length; i++) pdfText += String(offsets[i]).padStart(10, '0') + ' 00000 n \n';
+    pdfText += 'trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n' + xrefOffset + '\n%%EOF';
     const pdf = Buffer.from(pdfText, 'binary');
     const result = JSON.parse(await reader.run(
       { prompt: 'File name: test.pdf' },
