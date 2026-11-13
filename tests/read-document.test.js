@@ -102,7 +102,7 @@ test('digital PDFs are extracted locally without any vision API key', async () =
       doc.on('data', chunk => chunks.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
-      doc.font('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf')
+      doc.font('Helvetica') // built into PDFKit, so it does not depend on a system font file
         .fontSize(18)
         .text('LOCAL PDF TEST TOTAL 4500', 50, 80, { lineBreak: false });
       doc.end();
