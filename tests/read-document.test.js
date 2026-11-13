@@ -243,3 +243,35 @@ test('image OCR uses local OCR and never calls a vision provider', async () => {
     assert.deepEqual(result.rows, []);
   } finally { global.fetch = oldFetch; }
 });
+
+
+test('synthetic fashion retail receipt extracts transaction fields and line items for review only', async () => {
+ const receipt=[
+  'PELEX BUSINESS AGENT - TEST DATA SYNTHETIC SAMPLE — NOT A REAL TRANSACTION OR TAX INVOICE',
+  'Fashion retail sales receipt',
+  'Business type: Fashion and clothing retail',
+  'Slip reference: PXL-TEST-018',
+  'Date: 12 Nov 2026',
+  'Walk-in customer',
+  'Description Qty Unit price (NGN) Line total (NGN)',
+  "Men's senator fabric 2 18,500.00 37,000.00",
+  'Tailoring accessories set 1 7,500.00 7,500.00',
+  'Ready-made shirt 1 22,000.00 22,000.00',
+  'Subtotal: NGN 66,500.00',
+  'Total: NGN 66,500.00',
+  'Payment method: Cash',
+  'Status: Paid',
+  'Currency: NGN',
+  'Receipt / reference: REF-018-TEST'
+ ].join('\n');
+ const result=JSON.parse(await reader.run({prompt:'File name: PXL-TEST-018.txt'},context(dataUrl('text/plain',receipt))));
+ assert.equal(result.transaction.transaction_type,'sale');
+ assert.equal(result.transaction.date,'12 Nov 2026');
+ assert.equal(result.transaction.total,66500);
+ assert.equal(result.transaction.reference,'PXL-TEST-018');
+ assert.equal(result.transaction.payment_method,'Cash');
+ assert.equal(result.transaction.status,'paid');
+ assert.equal(result.rows.length,3);
+ assert.deepEqual(result.rows.map(x=>x.line_total),[37000,7500,22000]);
+ assert.equal(result.transaction.auto_saved,false);
+});
