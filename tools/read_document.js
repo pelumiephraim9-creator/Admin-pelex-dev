@@ -88,7 +88,7 @@ async function readPdf(bytes, injectedOcr) {
    textPages.push(text);
   }
   const digital=textPages.filter(Boolean).join('\n\n');
-  if(digital.length>=30)return {text:digital,method:'local PDF text extraction',pages:pageCount,ocrPages:0};
+  if(digital.length>0)return {text:digital,method:'local PDF text extraction',pages:pageCount,ocrPages:0};
   const scanned=[];
   for(let n=1;n<=pageCount;n++){
    const page=await doc.getPage(n),viewport=page.getViewport({scale:1.6});
@@ -100,8 +100,9 @@ async function readPdf(bytes, injectedOcr) {
    const text=injectedOcr?await injectedOcr(png,'image/png'):await ocrImage(png,'image/png');
    scanned.push(text);
   }
-  const text=scanned.map((v,i)=>'PAGE '+(i+1)+'\n'+v).join('\n\n').trim();
-  if(!text)throw Error('Local OCR could not find readable text in this PDF. Try a clearer scan or photo.');
+  const readable=scanned.map(v=>String(v||'').trim()).filter(Boolean);
+  if(!readable.length)throw Error('Local OCR could not find readable text in this PDF. Try a clearer scan or photo.');
+  const text=scanned.map((v,i)=>String(v||'').trim()?'PAGE '+(i+1)+'\n'+String(v).trim():'').filter(Boolean).join('\n\n');
   return {text,method:'local PDF rendering + OCR',pages:pageCount,ocrPages:pageCount};
  } finally { await doc.destroy().catch(()=>{}); }
 }
