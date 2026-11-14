@@ -1,7 +1,7 @@
 'use strict';
 /* SCHEDULED TASKS (website delivery)
-   Every result is a complete report: summary, reasons, rating, pictures, next steps and a conclusion.
-   Results are saved to the task and open in the side panel of the app, not under the Schedule list. */
+   Execute the requested task and present only its customer-facing result.
+   Internal run metadata remains private; delivered content is clean and task-appropriate. */
 
 const { nextAfter } = require('./scheduler_recurrence');
 const AGENTS = require('../registry');
@@ -81,8 +81,7 @@ function scheduledChatTitle(row) {
     .trim() || 'Scheduled task';
   // Stable across retries: next_run changes after a retry, but the same task
   // must always deliver into the same chat.
-  const taskRef = safeText(row.id || '', 12);
-  return safeText(`Scheduled: ${subject.slice(0, 78)} · ${taskRef}`, 120);
+  return safeText(`Scheduled: ${subject.slice(0, 96)}`, 120);
 }
 
 async function ensureResultChat(ctx, row, result, knownChatId = null) {
@@ -274,7 +273,7 @@ async function processTask(ctx, row) {
         sid: `sched-${row.id}`,
         text: scheduledTaskBrief(instruction),
         memoryText: instruction,
-        meta: { userId: row.user_id, userName: safeText(row.user_name || 'user', 120), scheduledTaskId: row.id, custom: { tone: 'Professional', length: 'Detailed', instructions: 'Scheduled deliveries must be comprehensive, evidence-based and structured with clear headings. Explain the reasons behind findings, practical implications, limitations and next steps. Do not provide a short chat-style answer.' } },
+        meta: { userId: row.user_id, userName: safeText(row.user_name || 'user', 120), scheduledTaskId: row.id, custom: { tone: 'Professional', length: 'Adaptive', instructions: 'Complete the exact scheduled task in its natural format. Use bold standalone headings, aligned paragraphs and consistent lists when structure is useful. Do not force a long report or generic sections. Never expose internal execution or infrastructure details.' } },
         privacy: 'private',
         uid: row.user_id,
         agentId: bot
@@ -347,6 +346,8 @@ module.exports = {
   processTask,
   ensureResultChat,
   repairDeliveredScheduledChats,
+  cleanScheduledReport,
+  scheduledTaskBrief,
   start(ctx) {
     if (!ctx.sbOn()) { ctx.log('scheduler not started: Supabase is not configured'); return; }
     const timer = setInterval(() => tick(ctx), 30000);
