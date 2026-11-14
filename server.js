@@ -995,6 +995,22 @@ async function runAgent({ sid, text, meta, onStep, images, privacy, clientHistor
     await saveTurn({ sid, userId: uid, agentId, userText: savedText + ` [${imgs.length} image${imgs.length > 1 ? 's' : ''} attached]`, answer: answerEdit });
     return { output: answerEdit, steps: ['Editing the picture'] };
   }
+  // Image requests must not depend on the language model deciding whether to call a tool.
+  // Route explicit image-generation commands straight to the image tool so a coding model
+  // cannot substitute an HTML/code preview for the requested picture.
+  const explicitImageRequest =
+    /^\/image(?:\s|$)/i.test(text) ||
+    /\b(?:generate|create|make|draw|design|produce|render)\b[\s\S]{0,120}\b(?:image|picture|photo|photograph|illustration|artwork|logo|poster|flyer|banner|cover\s*art|graphic)\b/i.test(text) ||
+    /\b(?:image|picture|photo|photograph|illustration|artwork|logo|poster|flyer|banner|cover\s*art|graphic)\b[\s\S]{0,100}\b(?:generate|create|make|draw|design|produce|render)\b/i.test(text);
+  if (explicitImageRequest && !imgs.length) {
+    const imagePrompt = text.replace(/^\/image\s*/i, '').trim() || text;
+    const imageResult = await runTool('image_generate', { mode: 'create', prompt: imagePrompt }, run);
+    let imageAnswer = String(imageResult || '').trim();
+    for (const md of run.attachments) if (!imageAnswer.includes(md)) imageAnswer += '\n\n' + md;
+    await saveTurn({ sid, userId: uid, agentId, userText: savedText, answer: imageAnswer });
+    return { output: imageAnswer, steps: ['Generating image'] };
+  }
+
   for (let round = 0; round <= CFG.maxToolRounds; round++) {
     if (Date.now() - started > CFG.totalTimeoutMs) throw new Error('That took too long.');
     const useTools = round < CFG.maxToolRounds;
