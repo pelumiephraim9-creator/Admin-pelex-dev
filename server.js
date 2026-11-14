@@ -204,7 +204,9 @@ async function saveFile({ name, mime, bytes, folder }) {
   // Public-facing media URLs stay on Pelex. Storage credentials and provider URLs never leave the server.
   const expires = Math.floor(Date.now() / 1000) + 172800;
   const signature = crypto.createHmac('sha256', CFG.signingSecret).update(path + '|' + safe + '|' + expires).digest('hex');
-  const base = String(ENV.MEDIA_PUBLIC_URL || 'https://pelexn8n.onrender.com').replace(/\/+$/, '');
+  // Media downloads are served by this Render backend, not the pelex.tech frontend host.
+  // Using the frontend origin here makes its SPA fallback return index.html instead of the stored image.
+  const base = 'https://pelexn8n.onrender.com';
   const query = '?path=' + encodeURIComponent(path) + '&name=' + encodeURIComponent(safe) + '&expires=' + expires + '&sig=' + signature;
   return { url: base + '/media/download' + query + '&view=1', downloadUrl: base + '/media/download' + query, expiresIn: 172800 };
 }
