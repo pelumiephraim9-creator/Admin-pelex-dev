@@ -1028,15 +1028,18 @@ async function runAgent({ sid, text, meta, onStep, images, privacy, clientHistor
   }
   if (!answer) answer = 'I could not finish that one. Please try again in a moment.';
   function sanitizeCustomerOutput(value) {
-  let out = String(value || '').replace(/\u0000/g, '').replace(/<!--\s*pelex-[\s\S]*?-->/gi, '');
-  out = out
-    .replace(/https?:\/\/[^\s)\]]*(?:supabase\.co|onrender\.com|github\.com|workers\.dev)[^\s)\]]*/gi, '')
-    .replace(/\b(?:Supabase|Render(?:\.com)?|Cloudflare|GitHub|PostgreSQL|PostgREST|Row[- ]Level[- ]Security|RLS policy|scheduler worker|scheduled_tasks|claim_token)\b/gi, 'Pelex')
-    .replace(/\b(?:database|storage|backend)\s+(?:row|record|insert|policy|request)\s+(?:was\s+)?(?:not\s+)?saved\b/gi, 'That change could not be saved')
-    .replace(/\b(?:new row violates|permission denied for table|violates row-level security policy|JWT expired|relation "[^"]+" does not exist)\b/gi, 'The request could not be completed')
+  const internal = /(?:Supabase|Render(?:\.com)?|Cloudflare|GitHub|PostgreSQL|PostgREST|Row[- ]Level[- ]Security|RLS policy|scheduler worker|scheduled_tasks|claim_token|https?:\/\/[^\s]*(?:supabase\.co|onrender\.com|github\.com|workers\.dev))/i;
+  return String(value || '')
+    .replace(/\u0000/g, '')
+    .replace(/<!--\s*pelex-[\s\S]*?-->/gi, '')
+    .split(/\r?\n/)
+    .filter(line => !internal.test(line))
+    .map(line => /(?:new row violates|permission denied for table|violates row-level security policy|JWT expired|relation "[^"]+" does not exist)/i.test(line)
+      ? 'I could not complete that request just now. Please try again.'
+      : line)
+    .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
-  return out;
 }
 
 // Never let a model echo signed media URLs into ordinary chat text. The
