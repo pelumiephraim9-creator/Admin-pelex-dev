@@ -152,7 +152,7 @@ test('scheduled report cleanup removes internal markers and infrastructure discl
   assert.match(cleaned, /# \*\*Netflix Update\*\*/);
   assert.match(cleaned, /## \*\*New Releases\*\*/);
   assert.match(cleaned, /## \*\*Conclusion\*\*/);
-  assert.doesNotMatch(cleaned, /pelex-scheduled-run|Supabase|row-level security|supabase\\.co|secret/i);
+  assert.doesNotMatch(cleaned, /pelex-scheduled-run|Supabase|row-level security|supabase\.co|secret/i);
 });
 
 test('scheduled task instructions require bold standalone headings and task-appropriate output', () => {
