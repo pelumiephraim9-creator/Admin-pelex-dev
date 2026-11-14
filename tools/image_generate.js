@@ -44,11 +44,13 @@ async function viaCloudflare(prompt, ctx) {
   }
   if (type.includes('application/json')) {
     const j = await r.json().catch(() => null);
-    if (j && j.result && j.result.image) return { bytes: Buffer.from(j.result.image, 'base64'), mime: 'image/png', via: 'Cloudflare FLUX' };
+    if (j && j.result && j.result.image) { const bytes = Buffer.from(j.result.image, 'base64'), mime = MAGIC(bytes); if (!mime) throw new Error('Cloudflare returned data that is not a valid image.'); return { bytes, mime, via: 'Cloudflare FLUX' }; }
     throw new Error('Cloudflare returned JSON without image bytes.');
   }
   if (!type.startsWith('image/')) throw new Error('Cloudflare returned an unexpected content type: ' + type);
-  return { bytes: Buffer.from(await r.arrayBuffer()), mime: type.split(';')[0], via: 'Cloudflare FLUX' };
+  const bytes = Buffer.from(await r.arrayBuffer()), mime = MAGIC(bytes);
+  if (!mime) throw new Error('Cloudflare returned a non-image response despite its image content type.');
+  return { bytes, mime, via: 'Cloudflare FLUX' };
 }
 
 async function viaHuggingFace(prompt, ctx) {
@@ -72,7 +74,9 @@ async function viaHuggingFace(prompt, ctx) {
     throw new Error('Hugging Face HTTP ' + r.status + ': ' + clip(body, 220));
   }
   if (!type.startsWith('image/')) throw new Error('Hugging Face returned ' + type + ' instead of an image.');
-  return { bytes: Buffer.from(await r.arrayBuffer()), mime: type.split(';')[0], via: 'Hugging Face FLUX' };
+  const bytes = Buffer.from(await r.arrayBuffer()), mime = MAGIC(bytes);
+  if (!mime) throw new Error('Hugging Face returned a non-image response despite its image content type.');
+  return { bytes, mime, via: 'Hugging Face FLUX' };
 }
 
 // Gemini image model: takes the reference picture(s) plus the instruction, returns a picture.
@@ -158,6 +162,9 @@ async function readUrl(url, ctx) {
 }
 
 async function save(img, ctx, note) {
+  const actualMime = MAGIC(img && img.bytes);
+  if (!actualMime) throw new Error('The image provider returned invalid picture data. No file was saved.');
+  img.mime = actualMime;
   const ext = img.mime === 'image/png' ? 'png' : img.mime === 'image/webp' ? 'webp' : 'jpg';
   const file = await ctx.saveFile({ name: 'pelex-image.' + ext, mime: img.mime, bytes: img.bytes, folder: 'images' });
   const caption = imageCaption(img.caption);
