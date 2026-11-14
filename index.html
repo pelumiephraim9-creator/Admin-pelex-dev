@@ -2408,7 +2408,7 @@ function friendly(e){
   if(/captcha/i.test(t))return 'The security check did not pass. Refresh the page, wait for the check to finish, and try again.';
   if(/rate limit/i.test(t))return 'Too many attempts. Please wait a few minutes and try again.';
   if(/token has expired|otp_expired|invalid.*(token|otp)/i.test(t))return 'That code is wrong or has expired. Tap Send a new code.';
-  if(/supabase|render\\.com|cloudflare|github\\.com|postgres|postgrest|row[- ]level security|rls|database|storage|backend|internal server|stack trace|https?:\\/\\//i.test(t))return 'We could not complete that request just now. Please try again. If it continues, contact Pelex support.';
+  if(/supabase|render\.com|cloudflare|github\.com|postgres|postgrest|row[- ]level security|rls|database|storage|backend|internal server|stack trace|https?:\/\//i.test(t))return 'We could not complete that request just now. Please try again. If it continues, contact Pelex support.';
   return t}
 function applyUser(u){
   signedIn=!!u;curUser=u||null;
