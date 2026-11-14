@@ -168,7 +168,7 @@ async function save(img, ctx, note) {
   const ext = img.mime === 'image/png' ? 'png' : img.mime === 'image/webp' ? 'webp' : 'jpg';
   const file = await ctx.saveFile({ name: 'pelex-image.' + ext, mime: img.mime, bytes: img.bytes, folder: 'images' });
   const caption = imageCaption(img.caption);
-  return { text: caption + ' \u2014 ' + (note || 'image generated.'), markdown: `![${caption}](${file.url})` };
+  return { text: caption + ' \u2014 ' + (note || 'image generated.'), markdown: `![Generated image](${file.url})` };
 }
 
 module.exports = {
