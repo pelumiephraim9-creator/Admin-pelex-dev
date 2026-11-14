@@ -558,6 +558,7 @@ function loadExtraTools() {
   const fs = require('fs'), path = require('path'); const dir = path.join(__dirname, 'tools');
   let files = []; try { files = fs.readdirSync(dir).filter(f => f.endsWith('.js')).sort(); } catch (e) { return; }
   for (const f of files) {
+    if (f === 'image_generate.js') { log('tool disabled:', f); continue; }
     try {
       const t = require(path.join(dir, f));
       if (!t || !/^[a-z][a-z0-9_]{1,40}$/.test(String(t.name || '')) || typeof t.run !== 'function' || typeof t.description !== 'string') throw new Error('needs a name, a description and a run function');
