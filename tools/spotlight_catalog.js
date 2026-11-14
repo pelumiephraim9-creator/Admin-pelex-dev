@@ -81,7 +81,7 @@ async function discoverPeerTubeHosts(ctx) {
   if (PEERTUBE_HEALTHY_HOSTS && Date.now() - PEERTUBE_HEALTHY_AT < 1800000) return PEERTUBE_HEALTHY_HOSTS;
   if (PEERTUBE_DISCOVERY_PENDING) return PEERTUBE_DISCOVERY_PENDING;
   PEERTUBE_DISCOVERY_PENDING = (async () => {
-    const manual = String(E.PEERTUBE_INSTANCES || '').split(',').map(x => x.trim().replace(/\\/+$/, '')).filter(x => /^https:\\/\\/[a-z0-9.-]+$/i.test(x));
+    const manual = String(E.PEERTUBE_INSTANCES || '').split(',').map(value => { try { const parsed = new URL(value.trim()); return parsed.protocol === 'https:' ? parsed.origin : ''; } catch (_) { return ''; } }).filter(Boolean);
     let directoryHosts = [];
     try {
       const directory = await request(PEERTUBE_DIRECTORY, {}, ctx, 8000);
