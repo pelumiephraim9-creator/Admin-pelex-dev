@@ -2911,7 +2911,7 @@ async function loadTasks(){
     meta.textContent=(AGL[t.agent||t.bot]||'General Agent')+' · '+when+' · '+(t.channel==='website'?'sent to this app':'sent to '+t.channel)+(t.active&&nx?' · next '+nx.toLocaleDateString([],{weekday:'short',day:'numeric',month:'short'}):' · paused');
     c.appendChild(meta);
     if(t.last_result){
-      var lr=document.createElement('div');lr.className='res';var visibleResult=String(t.last_result).replace(/<!--\\s*pelex-[\\s\\S]*?-->/gi,'').trim();if(window.mdRender)lr.appendChild(window.mdRender(visibleResult.slice(0,6000)));else lr.textContent=visibleResult.slice(0,600);c.appendChild(lr);
+      var lr=document.createElement('div');lr.className='res';var visibleResult=String(t.last_result).replace(/<!--\s*pelex-[\s\S]*?-->/gi,'').trim();if(window.mdRender)lr.appendChild(window.mdRender(visibleResult.slice(0,6000)));else lr.textContent=visibleResult.slice(0,600);c.appendChild(lr);
       }
     var sl=schedStatusLine(t);if(sl){var ld=document.createElement('div');ld.className='meta';ld.textContent=sl;c.appendChild(ld)}
     var hr=(window.__runs||{})[t.id];if(hr&&hr.length){var dt=document.createElement('details');dt.className='actlog';var sm=document.createElement('summary');sm.textContent='History · '+hr.length+(hr.length===1?' run':' runs');dt.appendChild(sm);hr.slice(0,5).forEach(function(x){var rw=document.createElement('div');rw.textContent=new Date(x.started_at).toLocaleString([],{dateStyle:'short',timeStyle:'short'})+' · '+String(x.status).replace(/_/g,' ')+(x.error?' · '+scheduleSafeError(x.error):'');dt.appendChild(rw)});c.appendChild(dt)}
