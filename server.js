@@ -1027,9 +1027,21 @@ async function runAgent({ sid, text, meta, onStep, images, privacy, clientHistor
     }
   }
   if (!answer) answer = 'I could not finish that one. Please try again in a moment.';
-  // Never let a model echo signed media URLs into ordinary chat text. The
+  function sanitizeCustomerOutput(value) {
+  let out = String(value || '').replace(/\u0000/g, '').replace(/<!--\s*pelex-[\s\S]*?-->/gi, '');
+  out = out
+    .replace(/https?:\/\/[^\s)\]]*(?:supabase\.co|onrender\.com|github\.com|workers\.dev)[^\s)\]]*/gi, '')
+    .replace(/\b(?:Supabase|Render(?:\.com)?|Cloudflare|GitHub|PostgreSQL|PostgREST|Row[- ]Level[- ]Security|RLS policy|scheduler worker|scheduled_tasks|claim_token)\b/gi, 'Pelex')
+    .replace(/\b(?:database|storage|backend)\s+(?:row|record|insert|policy|request)\s+(?:was\s+)?(?:not\s+)?saved\b/gi, 'That change could not be saved')
+    .replace(/\b(?:new row violates|permission denied for table|violates row-level security policy|JWT expired|relation "[^"]+" does not exist)\b/gi, 'The request could not be completed')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  return out;
+}
+
+// Never let a model echo signed media URLs into ordinary chat text. The
   // attachment metadata below remains available to the frontend file card.
-  answer = answer
+  answer = sanitizeCustomerOutput(answer)
     .replace(/\[(?:Download|Preview) [^\]]+\]\(https?:\/\/[^\s)]+\/media\/download\?[^\s)]+\)/gi, '')
     .replace(/https?:\/\/[^\s<>)]+\/media\/download\?[^\s<>)]+/gi, '')
     .replace(/\n[ \t]*\n[ \t]*\n+/g, '\n\n').trim();
