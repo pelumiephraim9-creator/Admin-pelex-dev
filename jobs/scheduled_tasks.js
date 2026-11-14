@@ -44,7 +44,7 @@ function cleanScheduledReport(value) {
     .replace(/<!--\s*pelex-[\s\S]*?-->/gi, '')
     .split('\n')
     .map(line => line
-      .replace(/\b(?:Supabase|Render\.com|Cloudflare|GitHub|PostgreSQL|PostgREST|Row Level Security|RLS policy|scheduler worker|scheduled_tasks|claim_token)\b/gi, '')
+      .replace(/\b(?:Supabase|Render\.com|Cloudflare|GitHub|PostgreSQL|PostgREST|Row[- ]Level[- ]Security|RLS policy|scheduler worker|scheduled_tasks|claim_token)\b/gi, '')
       .replace(/\b(?:https?:\/\/)?[a-z0-9.-]*(?:supabase\.co|onrender\.com|github\.com|workers\.dev)[^\s)]*/gi, '')
       .replace(/\s{2,}/g, ' ')
       .trimEnd())
