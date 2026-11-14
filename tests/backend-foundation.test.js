@@ -135,3 +135,29 @@ test('stale scheduled chat IDs are replaced instead of causing a messages foreig
   assert.equal(messageWrite.body[0].chat_id, 'replacement-chat');
   assert.equal(calls.some(x => x.path.includes('id=eq.deleted-chat') && x.method === 'GET'), true);
 });
+
+
+test('scheduled report cleanup removes internal markers and infrastructure disclosures', () => {
+  const cleaned = scheduler.cleanScheduledReport([
+    '# **Netflix Update**',
+    '',
+    '## **New Releases**',
+    '- Confirmed title.',
+    '<!--pelex-scheduled-run:secret-->',
+    'The request failed because Supabase row-level security blocked it.',
+    'Internal link: https://example.supabase.co/rest/v1/private',
+    '## **Conclusion**',
+    'Check the official catalogue.'
+  ].join('\\n'));
+  assert.match(cleaned, /# \\*\\*Netflix Update\\*\\*/);
+  assert.match(cleaned, /## \\*\\*New Releases\\*\\*/);
+  assert.match(cleaned, /## \\*\\*Conclusion\\*\\*/);
+  assert.doesNotMatch(cleaned, /pelex-scheduled-run|Supabase|row-level security|supabase\\.co|secret/i);
+});
+
+test('scheduled task instructions require bold standalone headings and task-appropriate output', () => {
+  const prompt = scheduler.scheduledTaskBrief('Find the latest Netflix releases');
+  assert.match(prompt, /## \\*\\*Section heading\\*\\*/);
+  assert.match(prompt, /Do not turn every instruction into an essay/);
+  assert.match(prompt, /Never mention or reveal internal systems/);
+});
