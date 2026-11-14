@@ -106,26 +106,60 @@ async function discoverPeerTubeHosts(ctx) {
   return PEERTUBE_DISCOVERY_PENDING;
 }
 async function peertube(q, page, ctx) {
-  const hosts = await discoverPeerTubeHosts(ctx);
-  if (!hosts.length) throw new Error('no_public_instances_available');
-  const offset = Math.max(0, Number(page) || 0), all = [];
-  for (const host of hosts) {
-    try {
-      const u = new URL('/api/v1/search/videos', host);
-      u.searchParams.set('search', q); u.searchParams.set('count', '10'); u.searchParams.set('start', String(offset));
-      const j = await request(u, {}, ctx);
-      for (const v of j.data || []) {
-        const id = v.uuid || v.id;
-        if (!id) continue;
-        all.push(video('peertube', id, v.name, v.channel && v.channel.displayName,
-          v.thumbnailPath ? new URL(v.thumbnailPath, host).href : '',
-          host + '/videos/watch/' + id, host + '/videos/embed/' + id,
-          { published: v.publishedAt || null, views: v.views,
-            playback: { embed: true, controls: true, seek: true, speed: false, fullscreen: true, pip: false } }));
+  const offset = Math.max(0, Number(page) || 0);
+  const u = new URL('https://sepiasearch.org/api/v1/search/videos');
+  u.searchParams.set('search', q);
+  u.searchParams.set('count', '10');
+  u.searchParams.set('start', String(offset));
+  u.searchParams.set('sort', '-match');
+  u.searchParams.set('nsfw', 'false');
+  try {
+    const indexed = await request(u, {}, ctx, 12000);
+    const videos = (Array.isArray(indexed.data) ? indexed.data : []).map(v => {
+      const uuid = v.uuid || v.shortUUID || v.id;
+      let origin = '';
+      try {
+        const canonical = new URL(v.url);
+        origin = canonical.origin;
+      } catch (_) {
+        const host = v.channel && (v.channel.host || v.channel.account && v.channel.account.host);
+        if (host && /^[a-z0-9.-]+$/i.test(host)) origin = 'https://' + host;
       }
-    } catch (_) {}
+      const watch = v.url || (origin && uuid ? origin + '/videos/watch/' + encodeURIComponent(uuid) : '');
+      const embed = origin && uuid ? origin + '/videos/embed/' + encodeURIComponent(uuid) : '';
+      let thumbnail = v.thumbnailPath || v.thumbnailUrl || '';
+      if (thumbnail && origin) { try { thumbnail = new URL(thumbnail, origin).href; } catch (_) {} }
+      return video('peertube', uuid, v.name || v.title, v.channel && (v.channel.displayName || v.channel.name),
+        thumbnail, watch, embed, { duration: v.duration || null, published: v.publishedAt || v.createdAt || null,
+          views: v.views || null, playback: { embed: !!embed, controls: !!embed, seek: !!embed, speed: false, fullscreen: !!embed, pip: false } });
+    }).filter(v => v.id && v.url);
+    return { videos, nextPageToken: offset + 10 < (Number(indexed.total) || 0) ? String(offset + 10) : null };
+  } catch (indexError) {
+    // If the federated index is temporarily unavailable, fall back to reachable public instances.
+    const hosts = await discoverPeerTubeHosts(ctx);
+    if (!hosts.length) throw indexError;
+    const results = await Promise.all(hosts.map(async host => {
+      try {
+        const endpoint = new URL('/api/v1/search/videos', host);
+        endpoint.searchParams.set('search', q);
+        endpoint.searchParams.set('count', '10');
+        endpoint.searchParams.set('start', String(offset));
+        endpoint.searchParams.set('nsfw', 'false');
+        const response = await request(endpoint, {}, ctx, 9000);
+        return (Array.isArray(response.data) ? response.data : []).map(v => {
+          const uuid = v.uuid || v.id;
+          return video('peertube', uuid, v.name, v.channel && v.channel.displayName,
+            v.thumbnailPath ? new URL(v.thumbnailPath, host).href : '',
+            host + '/videos/watch/' + encodeURIComponent(uuid),
+            host + '/videos/embed/' + encodeURIComponent(uuid),
+            { published: v.publishedAt || null, views: v.views || null,
+              playback: { embed: true, controls: true, seek: true, speed: false, fullscreen: true, pip: false } });
+        }).filter(v => v.id);
+      } catch (_) { return []; }
+    }));
+    const merged = results.flat();
+    return { videos: merged, nextPageToken: merged.length ? String(offset + 10) : null };
   }
-  return { videos: all, nextPageToken: all.length ? String(offset + 10) : null };
 }
 const PROVIDERS = {
   youtube: { ready: () => !!E.YOUTUBE_API_KEY, search: youtube },
@@ -141,7 +175,6 @@ async function run(args, ctx) {
     const results = [];
     for (const [name, p] of Object.entries(PROVIDERS)) {
       if (!p.ready()) continue;
-      if (name === 'peertube' && !(await discoverPeerTubeHosts(ctx)).length) continue;
       const probeKey = 'probe:' + name, hit = HEALTH.get(probeKey);
       if (hit && Date.now() - hit.at < 300000) { if (hit.ok) results.push({ id: name, name: name.replace(/_/g, ' '), connected: true }); continue; }
       if (PENDING.has(probeKey)) {
@@ -159,7 +192,6 @@ async function run(args, ctx) {
   const provider = String(args.provider || '').toLowerCase();
   const q = clip(args.query || '', 120).trim();
   if (!PROVIDERS[provider] || !PROVIDERS[provider].ready()) return JSON.stringify({ videos: [], nextPageToken: null, unavailable: true });
-  if (provider === 'peertube' && !(await discoverPeerTubeHosts(ctx)).length) return JSON.stringify({ videos: [], nextPageToken: null, unavailable: true });
   if (q.length < 2) return JSON.stringify({ videos: [], nextPageToken: null });
   const page = clip(args.pageToken || '', 80);
   const key = provider + '|' + q.toLowerCase() + '|' + page;
