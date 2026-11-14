@@ -43,17 +43,12 @@ function cleanScheduledReport(value) {
     .replace(/\r\n?/g, '\n')
     .replace(/<!--\s*pelex-[\s\S]*?-->/gi, '')
     .split('\n')
-    .map(line => line
-      .replace(/\b(?:Supabase|Render\.com|Cloudflare|GitHub|PostgreSQL|PostgREST|Row[- ]Level[- ]Security|RLS policy|scheduler worker|scheduled_tasks|claim_token)\b/gi, '')
-      .replace(/\b(?:https?:\/\/)?[a-z0-9.-]*(?:supabase\.co|onrender\.com|github\.com|workers\.dev)[^\s)]*/gi, '')
-      .replace(/\s{2,}/g, ' ')
-      .trimEnd())
+    .filter(line => !/(?:Supabase|Render(?:\.com)?|Cloudflare|GitHub|PostgreSQL|PostgREST|Row[- ]Level[- ]Security|RLS policy|scheduler worker|scheduled_tasks|claim_token|https?:\/\/[^\s]*(?:supabase\.co|onrender\.com|github\.com|workers\.dev))/i.test(line))
     .filter(line => !/^\s*(?:internal (?:task|run|claim) id|scheduled task id|backend status)\s*:/i.test(line))
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
-
 /* Execute the user's requested deliverable; do not force every task into a long report. */
 function scheduledTaskBrief(instruction) {
   return [
