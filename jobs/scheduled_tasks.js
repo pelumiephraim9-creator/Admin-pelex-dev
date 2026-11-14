@@ -38,42 +38,42 @@ async function rpc(ctx, name, body) {
 /* Keep scheduled instructions task-focused. Do not turn editing, writing, or file tasks into research reports. */
 
 function cleanScheduledReport(value) {
-  return String(value || '').split(/\r?\n/).filter(line => {
-    const plain = line.replace(/^\s*(?:[-*•]\s*)?/, '').trim().replace(/^[#*_\s]+|[#*_\s]+$/g, '');
-    return !/^(?:sources?|references?|source links?|further reading|bibliography)\s*:?\s*$/i.test(plain)
-      && !/^(?:sources?|references?)\s*:/i.test(plain)
-      && !/^https?:\/\//i.test(plain);
-  }).map(line => {
-    const images = [];
-    return line
-      .replace(/!\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g, (_, alt, url) => {
-        images.push('![' + alt + '](' + url + ')');
-        return '__PELEX_IMAGE_' + (images.length - 1) + '__';
-      })
-      .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '$1')
-      .replace(/https?:\/\/[^\s)\]]+/g, '')
-      .replace(/[ \t]+$/g, '')
-      .replace(/__PELEX_IMAGE_(\d+)__/g, (_, n) => images[Number(n)] || '');
-  }).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  return String(value || '')
+    .replace(/\u0000/g, '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/<!--\s*pelex-[\s\S]*?-->/gi, '')
+    .split('\n')
+    .map(line => line
+      .replace(/\b(?:Supabase|Render\.com|Cloudflare|GitHub|PostgreSQL|PostgREST|Row Level Security|RLS policy|scheduler worker|scheduled_tasks|claim_token)\b/gi, '')
+      .replace(/\b(?:https?:\/\/)?[a-z0-9.-]*(?:supabase\.co|onrender\.com|github\.com|workers\.dev)[^\s)]*/gi, '')
+      .replace(/\s{2,}/g, ' ')
+      .trimEnd())
+    .filter(line => !/^\s*(?:internal (?:task|run|claim) id|scheduled task id|backend status)\s*:/i.test(line))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
+
+/* Execute the user's requested deliverable; do not force every task into a long report. */
 function scheduledTaskBrief(instruction) {
   return [
-    'You are preparing a scheduled delivery for the user. This is a full professional briefing, not a short chat reply.',
-    'DEPTH: Give a thorough, detailed, useful answer. Do not default to a short response. Do not give only a headline, teaser, generic summary, or a few bullets.',
-    'STRUCTURE: Start with a clear title and executive summary. Then provide the relevant context and scope; detailed findings organised under useful headings; specific facts, dates, figures and examples; explain WHY each important point matters and the reasons behind your conclusions; practical implications; advantages and disadvantages where relevant; risks, limitations and what could change the conclusion; concrete recommendations and next steps; and a concise conclusion.',
-    'COMPLETENESS: Answer the whole instruction and cover the entire requested period, location, subject or set of items. For recurring news or monitoring tasks, distinguish new developments from background and explain what changed since the prior run when history is available. Avoid repeating old material as new.',
-    'EVIDENCE: Use current research and relevant sources internally for factual or time-sensitive tasks. Do not include source URLs, hyperlinks, citations, bibliography entries, or source-link lists in the delivered report. Present verified findings and analysis directly. Clearly separate verified facts, estimates and analysis. Never invent facts, images, live feeds or exact figures. If information cannot be verified, say so.',
-    'IMAGES — STRICT RELEVANCE: If the task asks for a real-world view or environmental picture, use find_images to retrieve existing photographs from the web. Search only for the exact requested location and its immediate surroundings. For Akure, the scope is Akure, Ondo State, Nigeria only. Never mix in Benue, other Nigerian states, US weather, unrelated cities, generic weather graphics, posters, flyers, infographics, collages, mock-ups, AI art or generated illustrations. Return at most 1–2 strong, relevant photographs, not a gallery of loosely related results. Inspect image titles and context; if relevance cannot be established, do not show the image and explain that a suitable photo could not be verified. A web photograph is not necessarily live: never call it live camera footage or real-time imagery unless it is an actual functioning live camera feed. If no live webcam exists, say briefly that you found the latest available real photographs, not a live stream. Do not use image generation as a substitute for real-world weather or location photography.',
-    'WEATHER TASKS: First use get_weather for the exact requested city and country. Keep every forecast figure tied to that location and its local time zone. If the person asks to see the environment, separately search for real photographs of that same city only. Do not use generic weather posters, forecast cards or images from other regions as environmental photographs. Clearly separate measured/current weather data from illustrative location photographs. Do not imply that a static photograph shows the current weather.',
-    'PRESENTATION: Use the clean minimalist response standard. Start with a concise title naming the exact location and report date. Give current conditions, a compact forecast, practical interpretation and useful advice in clear sections. Do not include source links, raw URLs, citations, source lists, search snippets or source-by-source commentary anywhere in the delivered report.',
-    'DOCUMENTS: For editing or document tasks, preserve meaning and layout unless asked otherwise. If the user supplied document text, work from it without asking them to paste it again. If a downloadable file is requested, create the requested file. Do not place backend or storage URLs in the report; the app provides its own in-app preview and download controls. Do not claim file creation unless it succeeds.',
-    'If a task genuinely has little information available, explain what was checked and why detail is limited instead of padding or inventing.',
+    'You are Pelex completing a scheduled task for the user. Do the task itself; do not explain the scheduler or describe internal execution.',
+    'FIRST classify the requested deliverable: research/update, monitoring, writing, planning, reminder, calculation, or another concrete task. Match the output to that deliverable. Do not turn every instruction into an essay.',
+    'LENGTH: Be complete enough to fulfil the exact instruction, but concise. Do not add generic introductions, conclusions, recommendations, next steps, definitions or filler unless requested or genuinely useful.',
+    'FORMATTING IS REQUIRED: Return clean Markdown that renders as a polished document. Put the main title alone on its own line as # **Title**. Put every section heading alone on its own line as ## **Section heading**. Headings such as Executive Summary, Introduction, Findings, New Releases, Trending Now, Conclusion and Recommendations must be bold and visually distinct from body text. Keep body paragraphs beneath their headings, with a blank line between sections. Use consistent hyphen bullets and consistent indentation. Bold important labels. Never put a heading and its body on the same line. Never leave unmatched asterisks, decorative star symbols, raw Markdown markers as literal text, ASCII art or ornamental separators.',
+    'RESEARCH: Verify current facts. State the relevant date and region when availability differs by location. Separate confirmed facts from estimates. Include relevant clickable source links in a concise Sources section or beside claims; do not invent titles, dates, sources, URLs or rankings.',
+    'MONITORING: Report what changed since the previous check. If nothing material changed, say so directly. Do not repeat old background as a new update.',
+    'WRITING: Deliver the requested finished writing directly, in the requested tone and format. Do not preface it with an essay about the writing.',
+    'PLANNING: Give the actual requested schedule, timetable or plan, covering the full period requested. Use a clear table or day-by-day structure when helpful.',
+    'REMINDERS: State the reminder directly and briefly.',
+    'CONFIDENTIALITY: Never mention or reveal internal systems, infrastructure, providers, databases, hosting, repositories, source code, private URLs, task IDs, run IDs, claim tokens, execution traces, tool names or backend errors. These are never part of a customer deliverable. If an operation fails, report only a clear, non-technical status and useful next step.',
+    'IMAGES AND FILES: When an image is created, show the image itself with one short caption only. Do not expose source code, raw URLs, storage paths, filenames or implementation details. For requested files, provide the actual in-app file result and do not invent a link.',
+    'If reliable information is unavailable, state the limitation plainly instead of guessing or padding.',
     '',
     'USER TASK:',
     instruction
   ].join('\n');
 }
-
 function scheduledChatTitle(row) {
   const subject = safeText(row.instruction, 180)
     .split(/\nSource website:/i)[0]
