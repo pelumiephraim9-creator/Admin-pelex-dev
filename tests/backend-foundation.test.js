@@ -148,16 +148,16 @@ test('scheduled report cleanup removes internal markers and infrastructure discl
     'Internal link: https://example.supabase.co/rest/v1/private',
     '## **Conclusion**',
     'Check the official catalogue.'
-  ].join('\\n'));
-  assert.match(cleaned, /# \\*\\*Netflix Update\\*\\*/);
-  assert.match(cleaned, /## \\*\\*New Releases\\*\\*/);
-  assert.match(cleaned, /## \\*\\*Conclusion\\*\\*/);
+  ].join('\n'));
+  assert.match(cleaned, /# \*\*Netflix Update\*\*/);
+  assert.match(cleaned, /## \*\*New Releases\*\*/);
+  assert.match(cleaned, /## \*\*Conclusion\*\*/);
   assert.doesNotMatch(cleaned, /pelex-scheduled-run|Supabase|row-level security|supabase\\.co|secret/i);
 });
 
 test('scheduled task instructions require bold standalone headings and task-appropriate output', () => {
   const prompt = scheduler.scheduledTaskBrief('Find the latest Netflix releases');
-  assert.match(prompt, /## \\*\\*Section heading\\*\\*/);
+  assert.match(prompt, /## \*\*Section heading\*\*/);
   assert.match(prompt, /Do not turn every instruction into an essay/);
   assert.match(prompt, /Never mention or reveal internal systems/);
 });
