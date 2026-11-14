@@ -3,12 +3,13 @@
 // it never downloads or stores video files.
 const E = process.env;
 const CACHE = new Map();
+const PENDING = new Map();
 const HEALTH = new Map();
 const clip = (v, n) => String(v == null ? '' : v).slice(0, n);
 const ttl = Math.max(5, Math.min(48, Number(E.SPOTLIGHT_CACHE_HOURS) || 24)) * 3600000;
 const enc = encodeURIComponent;
 function cached(key) { const v = CACHE.get(key); return v && Date.now() - v.at < ttl ? v.value : null; }
-function store(key, value) { CACHE.set(key, { at: Date.now(), value }); return value; }
+function store(key, value) { if (CACHE.size >= 500) CACHE.delete(CACHE.keys().next().value); CACHE.set(key, { at: Date.now(), value }); return value; }
 async function request(url, options, ctx) {
   const t = ctx.withTimeout(16000);
   try {
@@ -118,7 +119,9 @@ async function run(args, ctx) {
   const page = clip(args.pageToken || '', 80);
   const key = provider + '|' + q.toLowerCase() + '|' + page;
   const hit = cached(key); if (hit) return JSON.stringify(hit);
-  const result = await PROVIDERS[provider].search(q, page, ctx);
-  return JSON.stringify(store(key, result));
+  if (PENDING.has(key)) return JSON.stringify(await PENDING.get(key));
+  const work = PROVIDERS[provider].search(q, page, ctx).then(result => store(key, result)).finally(() => PENDING.delete(key));
+  PENDING.set(key, work);
+  return JSON.stringify(await work);
 }
 module.exports = { name: 'spotlight_catalog', description: 'Search connected video providers for Spotlight and report provider availability. Returns video metadata and official playback links only.', parameters: { type: 'object', properties: { action: { type: 'string', enum: ['providers', 'search'] }, provider: { type: 'string' }, query: { type: 'string' }, pageToken: { type: 'string' } }, required: ['action'] }, label: a => a.action === 'providers' ? 'Checking video sources' : 'Searching ' + clip(a.provider, 30), run, enabled: () => true };
