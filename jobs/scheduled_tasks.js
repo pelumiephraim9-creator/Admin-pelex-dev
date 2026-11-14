@@ -247,6 +247,14 @@ async function processTask(ctx, row) {
     }
     if (!row.instruction || !String(row.instruction).trim()) throw new Error('Scheduled task has no instruction.');
     const instruction = safeText(row.instruction, 6000);
+    const imageGenerationRequest = /^\s*\/image(?:\s|$)/i.test(instruction) ||
+      /\b(?:generate|create|make|draw|design|produce|render)\b[\s\S]{0,120}\b(?:image|picture|photo|photograph|illustration|artwork|logo|poster|flyer|banner|cover\s*art|graphic)\b/i.test(instruction) ||
+      /\b(?:image|picture|photo|photograph|illustration|artwork|logo|poster|flyer|banner|cover\s*art|graphic)\b[\s\S]{0,100}\b(?:generate|create|make|draw|design|produce|render)\b/i.test(instruction);
+    if (imageGenerationRequest) {
+      const error = new Error('Image generation is temporarily unavailable in Pelex. Please use ChatGPT image generation or another image-creation tool.');
+      error.permanent = true;
+      throw error;
+    }
     // Persist the generated result before delivery. If delivery or completion fails,
     // the next claim reuses this exact result instead of asking the model to run again.
     const pendingPrefix = '<!--pelex-scheduled-pending:';
