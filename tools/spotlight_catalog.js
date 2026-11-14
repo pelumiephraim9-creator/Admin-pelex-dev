@@ -10,8 +10,8 @@ const ttl = Math.max(5, Math.min(48, Number(E.SPOTLIGHT_CACHE_HOURS) || 24)) * 3
 const enc = encodeURIComponent;
 function cached(key) { const v = CACHE.get(key); return v && Date.now() - v.at < ttl ? v.value : null; }
 function store(key, value) { if (CACHE.size >= 500) CACHE.delete(CACHE.keys().next().value); CACHE.set(key, { at: Date.now(), value }); return value; }
-async function request(url, options, ctx) {
-  const t = ctx.withTimeout(16000);
+async function request(url, options, ctx, timeoutMs) {
+  const t = ctx.withTimeout(timeoutMs || 16000);
   try {
     const r = await fetch(url, Object.assign({}, options || {}, { signal: t.signal }));
     const body = await r.text();
@@ -73,15 +73,56 @@ async function internetArchive(q, page, ctx) {
   const j = await request(u, {}, ctx), docs = j.response && j.response.docs || [];
   return { videos: docs.map(v => video('internet_archive', v.identifier, v.title, Array.isArray(v.creator) ? v.creator.join(', ') : v.creator, 'https://archive.org/services/img/' + enc(v.identifier), 'https://archive.org/details/' + enc(v.identifier), 'https://archive.org/embed/' + enc(v.identifier), { published: v.date || null, playback: { embed: true, controls: false, seek: false, speed: false, fullscreen: true, pip: false } })), nextPageToken: p * 20 < ((j.response && j.response.numFound) || 0) ? String(p + 1) : null };
 }
+const PEERTUBE_DIRECTORY = 'https://instances.joinpeertube.org/api/v1/instances/hosts';
+let PEERTUBE_HEALTHY_HOSTS = null;
+let PEERTUBE_HEALTHY_AT = 0;
+let PEERTUBE_DISCOVERY_PENDING = null;
+async function discoverPeerTubeHosts(ctx) {
+  if (PEERTUBE_HEALTHY_HOSTS && Date.now() - PEERTUBE_HEALTHY_AT < 1800000) return PEERTUBE_HEALTHY_HOSTS;
+  if (PEERTUBE_DISCOVERY_PENDING) return PEERTUBE_DISCOVERY_PENDING;
+  PEERTUBE_DISCOVERY_PENDING = (async () => {
+    const manual = String(E.PEERTUBE_INSTANCES || '').split(',').map(x => x.trim().replace(/\\/+$/, '')).filter(x => /^https:\\/\\/[a-z0-9.-]+$/i.test(x));
+    let directoryHosts = [];
+    try {
+      const directory = await request(PEERTUBE_DIRECTORY, {}, ctx, 8000);
+      directoryHosts = (Array.isArray(directory.data) ? directory.data : [])
+        .map(item => item && String(item.host || '').trim().toLowerCase())
+        .filter(host => /^[a-z0-9.-]+$/.test(host) && !host.startsWith('.') && !host.endsWith('.'));
+    } catch (_) {}
+    const candidates = manual.concat(directoryHosts.map(host => 'https://' + host))
+      .filter((host, index, list) => list.indexOf(host) === index).slice(0, 20);
+    const checks = await Promise.all(candidates.map(async host => {
+      try {
+        const u = new URL('/api/v1/search/videos', host);
+        u.searchParams.set('search', 'nature'); u.searchParams.set('count', '1'); u.searchParams.set('start', '0');
+        const result = await request(u, {}, ctx, 5500);
+        return Array.isArray(result.data) ? host : null;
+      } catch (_) { return null; }
+    }));
+    PEERTUBE_HEALTHY_HOSTS = checks.filter(Boolean).slice(0, 5);
+    PEERTUBE_HEALTHY_AT = Date.now();
+    return PEERTUBE_HEALTHY_HOSTS;
+  })().finally(() => { PEERTUBE_DISCOVERY_PENDING = null; });
+  return PEERTUBE_DISCOVERY_PENDING;
+}
 async function peertube(q, page, ctx) {
-  const hosts = String(E.PEERTUBE_INSTANCES || '').split(',').map(x => x.trim().replace(/\/+$/, '')).filter(x => /^https:\/\/[a-z0-9.-]+$/i.test(x)).slice(0, 5);
-  if (!hosts.length) throw new Error('not_configured');
+  const hosts = await discoverPeerTubeHosts(ctx);
+  if (!hosts.length) throw new Error('no_public_instances_available');
   const offset = Math.max(0, Number(page) || 0), all = [];
   for (const host of hosts) {
     try {
-      const u = new URL('/api/v1/search/videos', host); u.searchParams.set('search', q); u.searchParams.set('count', '10'); u.searchParams.set('start', String(offset));
+      const u = new URL('/api/v1/search/videos', host);
+      u.searchParams.set('search', q); u.searchParams.set('count', '10'); u.searchParams.set('start', String(offset));
       const j = await request(u, {}, ctx);
-      for (const v of j.data || []) all.push(video('peertube', v.uuid || v.id, v.name, v.channel && v.channel.displayName, v.thumbnailPath ? new URL(v.thumbnailPath, host).href : '', host + '/videos/watch/' + (v.uuid || v.id), host + '/videos/embed/' + (v.uuid || v.id), { published: v.publishedAt || null, views: v.views, playback: { embed: true, controls: true, seek: true, speed: false, fullscreen: true, pip: false } }));
+      for (const v of j.data || []) {
+        const id = v.uuid || v.id;
+        if (!id) continue;
+        all.push(video('peertube', id, v.name, v.channel && v.channel.displayName,
+          v.thumbnailPath ? new URL(v.thumbnailPath, host).href : '',
+          host + '/videos/watch/' + id, host + '/videos/embed/' + id,
+          { published: v.publishedAt || null, views: v.views,
+            playback: { embed: true, controls: true, seek: true, speed: false, fullscreen: true, pip: false } }));
+      }
     } catch (_) {}
   }
   return { videos: all, nextPageToken: all.length ? String(offset + 10) : null };
@@ -91,9 +132,8 @@ const PROVIDERS = {
   vimeo: { ready: () => !!E.VIMEO_ACCESS_TOKEN, search: vimeo },
   pexels: { ready: () => !!E.PEXELS_API_KEY, search: pexels },
   pixabay: { ready: () => !!E.PIXABAY_API_KEY, search: pixabay },
-  dailymotion: { ready: () => !!(E.DAILYMOTION_API_KEY && E.DAILYMOTION_API_SECRET), search: dailymotion },
   internet_archive: { ready: () => true, search: internetArchive },
-  peertube: { ready: () => !!E.PEERTUBE_INSTANCES, search: peertube }
+  peertube: { ready: () => true, search: peertube }
 };
 async function run(args, ctx) {
   const action = args.action === 'providers' ? 'providers' : 'search';
@@ -101,6 +141,7 @@ async function run(args, ctx) {
     const results = [];
     for (const [name, p] of Object.entries(PROVIDERS)) {
       if (!p.ready()) continue;
+      if (name === 'peertube' && !(await discoverPeerTubeHosts(ctx)).length) continue;
       const probeKey = 'probe:' + name, hit = HEALTH.get(probeKey);
       if (hit && Date.now() - hit.at < 300000) { if (hit.ok) results.push({ id: name, name: name.replace(/_/g, ' '), connected: true }); continue; }
       if (PENDING.has(probeKey)) {
@@ -118,6 +159,7 @@ async function run(args, ctx) {
   const provider = String(args.provider || '').toLowerCase();
   const q = clip(args.query || '', 120).trim();
   if (!PROVIDERS[provider] || !PROVIDERS[provider].ready()) return JSON.stringify({ videos: [], nextPageToken: null, unavailable: true });
+  if (provider === 'peertube' && !(await discoverPeerTubeHosts(ctx)).length) return JSON.stringify({ videos: [], nextPageToken: null, unavailable: true });
   if (q.length < 2) return JSON.stringify({ videos: [], nextPageToken: null });
   const page = clip(args.pageToken || '', 80);
   const key = provider + '|' + q.toLowerCase() + '|' + page;
