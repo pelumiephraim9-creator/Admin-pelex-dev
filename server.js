@@ -1097,7 +1097,21 @@ async function handleGuest(req, res) {
     const r = await fetch(CFG.turnstileUrl, { method: 'POST', signal: t.signal, headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ secret: CFG.turnstileSecret, response: tk, remoteip: ip }).toString() }); t.done();
     const j = await r.json().catch(() => ({}));
     const hosts = CFG.origins.map(o => { try { return new URL(o).hostname; } catch (e) { return ''; } });
-    if (!j.success || (j.hostname && !hosts.includes(j.hostname) && !(CFG.allowLocalhost && /^(localhost|127\.0\.0\.1)$/.test(j.hostname)))) return send(res, 403, { error: 'Could not confirm you are human. Please try again.' });
+    const hostnameRejected = !!(j.hostname && !hosts.includes(j.hostname) && !(CFG.allowLocalhost && /^(localhost|127\.0\.0\.1)$/.test(j.hostname)));
+    if (!j.success || hostnameRejected) {
+      // Never log the submitted token or secret. Keep Siteverify's diagnostic
+      // codes so a bad secret, expired token, duplicate token, or hostname
+      // mismatch can be distinguished in Render logs.
+      log('Turnstile verification rejected:', JSON.stringify({
+        httpStatus: r.status,
+        success: !!j.success,
+        errorCodes: Array.isArray(j['error-codes']) ? j['error-codes'] : [],
+        hostname: j.hostname || '',
+        hostnameRejected,
+        allowedHostnames: hosts
+      }));
+      return send(res, 403, { error: 'Could not confirm you are human. Please try again.' });
+    }
   } catch (e) { log('human check problem:', e.message); return send(res, 502, { error: 'The human check is not answering. Try again in a moment.' }); }
   const g = signGuest(); return send(res, 200, { token: g.token, expiresIn: g.exp - Date.now() });
 }
