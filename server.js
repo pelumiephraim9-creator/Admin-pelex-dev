@@ -988,6 +988,15 @@ async function runAgent({ sid, text, meta, onStep, images, privacy, clientHistor
     const outV = await runTool('find_videos', { interest: (meta && meta.interest) || text, pageToken: (meta && meta.pageToken) || '' }, run);
     return { output: String(outV || ''), steps: ['Finding videos'] };
   }
+  if (run.intent === 'spotlight_catalog') {   // Main Spotlight: provider discovery/search, isolated from Pitch's YouTube-only intent
+    const outSpot = await runTool('spotlight_catalog', {
+      action: (meta && meta.action) || 'search',
+      provider: (meta && meta.provider) || '',
+      query: (meta && meta.query) || text,
+      pageToken: (meta && meta.pageToken) || ''
+    }, run);
+    return { output: String(outSpot || ''), steps: ['Searching video sources'] };
+  }
   if (imgs.length && run.intent === 'extract') {   // a document picture: return its rows for review, save nothing
     const outDoc = await runTool('read_document', { prompt: text }, run);
     return { output: String(outDoc || ''), steps: ['Reading the document'] };
