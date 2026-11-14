@@ -1,27 +1,25 @@
 // PELEX EDGE SHIELD (Cloudflare Worker)
 // Sits between the Pelex website and the Render backend.
-// Keep the Worker as the public API/media address; do not expose the Render URL in the browser.
+// The Worker is the only public address; the Render URL is never sent to the browser.
 //
 // Cloudflare Worker > Settings > Variables and Secrets:
-//   ORIGIN_URL       Text    Render backend base URL, e.g. https://pelexn8n.onrender.com
-//   EDGE_SECRET      Secret  same value as Render's EDGE_SECRET
-//   ALLOWED_ORIGINS  Text    optional, https://pelex.tech,https://www.pelex.tech
+//   ORIGIN_URL                 Text    Render backend base URL, e.g. https://pelexn8n.onrender.com
+//   EDGE_SECRET                Secret  same value as Render's EDGE_SECRET
+//   ALLOWED_ORIGINS            Text    optional, https://pelex.tech,https://www.pelex.tech
 //   PAYSTACK_SECRET_KEY        Secret  Paystack secret key (verifies x-paystack-signature)
 //   FLW_SECRET_HASH            Secret  Flutterwave secret hash (verif-hash header)
 //   SUPABASE_URL               Text    https://<project>.supabase.co
 //   SUPABASE_SERVICE_ROLE_KEY  Secret  Supabase service role key (writes payments to the ledger)
 //
 // Render must also set MEDIA_PUBLIC_URL to this Worker's public base URL.
-// Example: https://admin-pelex-dev.pelumiephraim9.workers.dev
+
+const UPSTREAM_TIMEOUT_MS = 55000;   // Render can take a while to wake up; answer the browser before it gives up
+const MAX_BODY = 6500000;
 
 // ---- Payment webhooks (Paystack, Flutterwave) that save to the ledger: verified, then saved.
-// Each workspace has its own URL token: /hooks/<provider>/<token>. No Origin check: providers call us directly.
 const LEDGER_HOOK = /^\/hooks\/(paystack|flutterwave)\/[^/]+$/;
 
-// ---- Backend hooks forwarded untouched (raw body kept so signatures still verify on Render):
-//   /hooks/paystack          Paystack receipt emails (signature checked by Render)
-//   /hooks/user-created      welcome email when a person signs up (secret checked by Render)
-//   /emails/product-update   product update emails (secret checked by Render)
+// ---- Backend hooks forwarded untouched (raw body kept so signatures still verify on Render)
 const FORWARD_HOOKS = ['/hooks/paystack', '/hooks/user-created', '/emails/product-update'];
 
 const enc = new TextEncoder();
@@ -37,7 +35,6 @@ function sameText(a, b) {
   return d === 0;
 }
 
-// Maps a provider event to one payment, or null if it is not a successful payment.
 function fromPaystack(evt) {
   if (evt.event !== 'charge.success' || !evt.data) return null;
   const d = evt.data, cust = d.customer || {};
@@ -64,7 +61,7 @@ async function saveToLedger(env, token, provider, p, raw) {
 
 async function handlePaymentWebhook(request, env) {
   const url = new URL(request.url);
-  const [, , provider, token] = url.pathname.split('/');            // /hooks/<provider>/<token>
+  const [, , provider, token] = url.pathname.split('/');
   if (request.method !== 'POST' || !token || !['paystack', 'flutterwave'].includes(provider)) return new Response('not found', { status: 404 });
   const body = await request.text();
   let evt; try { evt = JSON.parse(body); } catch (e) { return new Response('bad json', { status: 400 }); }
@@ -79,7 +76,6 @@ async function handlePaymentWebhook(request, env) {
     return new Response(res, { status: 200 });
   }
 
-  // Flutterwave: the verif-hash header must equal the secret hash set in the dashboard.
   if (!sameText(request.headers.get('verif-hash') || '', env.FLW_SECRET_HASH || '')) return new Response('bad signature', { status: 401 });
   const p = fromFlutterwave(evt);
   if (!p) return new Response('ignored', { status: 200 });
@@ -87,7 +83,6 @@ async function handlePaymentWebhook(request, env) {
   return new Response(res, { status: 200 });
 }
 
-// Forwards a backend hook to Render exactly as it arrived (raw body, signature headers) and adds the edge secret.
 async function forwardHook(request, env, originUrl, url) {
   if (request.method !== 'POST') return new Response('not found', { status: 404 });
   const raw = await request.arrayBuffer();
@@ -100,7 +95,7 @@ async function forwardHook(request, env, originUrl, url) {
     const v = request.headers.get(k); if (v) headersIn.set(k, v);
   }
   try {
-    const up = await fetch(originUrl + url.pathname, { method: 'POST', headers: headersIn, body: raw });
+    const up = await fetch(originUrl + url.pathname, { method: 'POST', headers: headersIn, body: raw, signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) });
     return new Response(up.body, { status: up.status, headers: { 'Content-Type': up.headers.get('Content-Type') || 'application/json', 'Cache-Control': 'no-store' } });
   } catch (e) {
     return new Response('the backend is not answering', { status: 502 });
@@ -109,7 +104,30 @@ async function forwardHook(request, env, originUrl, url) {
 
 const PATHS = ['/chat', '/chat/stream', '/auth/guest', '/voice/stt'];
 const GET_PATHS = ['/commands'];
-const MAX_BODY = 6500000;
+
+// Removes any backend address or internal path from text the browser is about to show.
+// Users see the answer, never where it came from.
+function scrubText(text, originHost) {
+  let t = String(text || '');
+  if (originHost) t = t.split(originHost).join('pelex.tech');
+  t = t.replace(/https?:\/\/[a-z0-9.-]*onrender\.com[^\s)"']*/gi, '');
+  t = t.replace(/\/(?:opt|home|mnt|usr|app|var|srv)\/[^\s)"']*/g, '');
+  return t;
+}
+function scrubStream(readable, originHost) {
+  const decoder = new TextDecoder(), encoder = new TextEncoder();
+  const transform = new TransformStream({
+    transform(chunk, controller) {
+      controller.enqueue(encoder.encode(scrubText(decoder.decode(chunk, { stream: true }), originHost)));
+    }
+  });
+  return readable.pipeThrough(transform);
+}
+
+// Browser-facing security headers are set on every reply, including errors.
+function safeHeaders(extra) {
+  return { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', ...extra };
+}
 
 export default {
   async fetch(request, env) {
@@ -118,32 +136,32 @@ export default {
       .split(',').map(s => s.trim()).filter(Boolean);
     const origin = request.headers.get('Origin') || '';
     const okOrigin = allowed.includes(origin);
+    const originHost = env.ORIGIN_URL ? String(env.ORIGIN_URL).replace(/^https?:\/\//, '').replace(/\/+$/, '') : '';
+
+    // Echo the headers the browser asks for, so a preflight never fails on a header list.
     const cors = okOrigin ? {
       'Access-Control-Allow-Origin': origin,
       'Vary': 'Origin',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Headers': request.headers.get('Access-Control-Request-Headers') || 'Content-Type, Authorization',
       'Access-Control-Max-Age': '600'
     } : {};
     const reply = (status, obj) => new Response(JSON.stringify(obj), {
-      status,
-      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...cors }
+      status, headers: safeHeaders({ 'Content-Type': 'application/json', ...cors })
     });
 
-    // Payment ledger webhooks (with a workspace token)
     if (LEDGER_HOOK.test(url.pathname)) {
       try { return await handlePaymentWebhook(request, env); }
       catch (e) { return new Response('webhook error', { status: 500 }); }
     }
 
-    // Backend hooks: forwarded to Render with the edge secret
     if (FORWARD_HOOKS.includes(url.pathname)) {
       if (!env.ORIGIN_URL || !env.EDGE_SECRET) return new Response('the shield is not set up yet', { status: 500 });
       return await forwardHook(request, env, String(env.ORIGIN_URL).replace(/\/+$/, ''), url);
     }
 
     if (request.method === 'OPTIONS') {
-      return new Response(null, { status: okOrigin ? 204 : 403, headers: cors });
+      return new Response(null, { status: okOrigin ? 204 : 403, headers: safeHeaders(cors) });
     }
     if (!env.ORIGIN_URL || !env.EDGE_SECRET) {
       return reply(500, { error: 'The shield is not set up yet.' });
@@ -152,7 +170,7 @@ export default {
 
     if (url.pathname === '/health' && request.method === 'GET') {
       try {
-        const health = await fetch(originUrl + '/health', { headers: { 'X-Pelex-Edge': env.EDGE_SECRET } });
+        const health = await fetch(originUrl + '/health', { headers: { 'X-Pelex-Edge': env.EDGE_SECRET }, signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) });
         const headers = new Headers(health.headers);
         headers.set('Cache-Control', 'no-store');
         for (const [k, v] of Object.entries(cors)) headers.set(k, v);
@@ -162,29 +180,21 @@ export default {
       }
     }
 
-    // Signed media URLs support both inline preview (?view=1) and attachment download.
-    // The signature and expiry are checked by Render. The edge secret is added server-side.
-    // Do not redirect: stream the actual file response back through this Worker.
     if (url.pathname === '/media/download' && request.method === 'GET') {
       try {
-        const headersIn = new Headers({
-          'X-Pelex-Edge': env.EDGE_SECRET,
-          'Accept': request.headers.get('Accept') || '*/*'
-        });
         const media = await fetch(originUrl + url.pathname + url.search, {
           method: 'GET',
-          headers: headersIn,
-          redirect: 'manual'
+          headers: { 'X-Pelex-Edge': env.EDGE_SECRET, 'Accept': request.headers.get('Accept') || '*/*' },
+          redirect: 'manual',
+          signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS)
         });
         const headersOut = new Headers(media.headers);
         headersOut.set('Cache-Control', 'private, no-store');
+        headersOut.set('X-Content-Type-Options', 'nosniff');
         headersOut.delete('Location');
+        headersOut.delete('Server');
         for (const [k, v] of Object.entries(cors)) headersOut.set(k, v);
-        return new Response(media.body, {
-          status: media.status,
-          statusText: media.statusText,
-          headers: headersOut
-        });
+        return new Response(media.body, { status: media.status, statusText: media.statusText, headers: headersOut });
       } catch (e) {
         return reply(502, { error: 'The media server is not answering. Try again shortly.' });
       }
@@ -217,20 +227,24 @@ export default {
       const upstream = await fetch(originUrl + url.pathname + url.search, {
         method: isCommandsGet ? 'GET' : 'POST',
         headers: headersIn,
+        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
         ...(isCommandsGet ? {} : { body: request.body })
       });
       const headersOut = new Headers(upstream.headers);
-      for (const key of ['set-cookie', 'access-control-allow-origin', 'access-control-allow-headers', 'access-control-allow-methods', 'vary']) {
+      for (const key of ['set-cookie', 'server', 'x-powered-by', 'location', 'access-control-allow-origin', 'access-control-allow-headers', 'access-control-allow-methods', 'vary']) {
         headersOut.delete(key);
       }
       for (const [k, v] of Object.entries(cors)) headersOut.set(k, v);
-      return new Response(upstream.body, {
-        status: upstream.status,
-        statusText: upstream.statusText,
-        headers: headersOut
-      });
+      headersOut.set('Cache-Control', 'no-store');
+      headersOut.set('X-Content-Type-Options', 'nosniff');
+      const isText = /text|json|event-stream/.test(headersOut.get('Content-Type') || '');
+      const body = isText && upstream.body ? scrubStream(upstream.body, originHost) : upstream.body;
+      return new Response(body, { status: upstream.status, statusText: upstream.statusText, headers: headersOut });
     } catch (e) {
-      return reply(502, { error: 'The server is not answering. Try again in a moment.' });
+      const timedOut = e && (e.name === 'TimeoutError' || e.name === 'AbortError');
+      return reply(timedOut ? 504 : 502, { error: timedOut
+        ? 'The server took too long to answer. Please send your message again.'
+        : 'The server is not answering. Try again in a moment.' });
     }
   }
 };
