@@ -101,14 +101,17 @@ async function run(args, ctx) {
     const results = [];
     for (const [name, p] of Object.entries(PROVIDERS)) {
       if (!p.ready()) continue;
-      const hit = HEALTH.get('probe:' + name);
+      const probeKey = 'probe:' + name, hit = HEALTH.get(probeKey);
       if (hit && Date.now() - hit.at < 300000) { if (hit.ok) results.push({ id: name, name: name.replace(/_/g, ' '), connected: true }); continue; }
-      try {
-        const result = await p.search(name === 'internet_archive' ? 'nature' : 'nature', '', ctx);
-        const ok = Array.isArray(result.videos);
-        HEALTH.set('probe:' + name, { at: Date.now(), ok });
-        if (ok) results.push({ id: name, name: name.replace(/_/g, ' '), connected: true });
-      } catch (e) { HEALTH.set('probe:' + name, { at: Date.now(), ok: false }); }
+      if (PENDING.has(probeKey)) {
+        if (await PENDING.get(probeKey)) results.push({ id: name, name: name.replace(/_/g, ' '), connected: true });
+        continue;
+      }
+      const probe = p.search('nature', '', ctx).then(result => {
+        const ok = Array.isArray(result.videos); HEALTH.set(probeKey, { at: Date.now(), ok }); return ok;
+      }).catch(() => { HEALTH.set(probeKey, { at: Date.now(), ok: false }); return false; }).finally(() => PENDING.delete(probeKey));
+      PENDING.set(probeKey, probe);
+      if (await probe) results.push({ id: name, name: name.replace(/_/g, ' '), connected: true });
     }
     return JSON.stringify({ providers: results });
   }
