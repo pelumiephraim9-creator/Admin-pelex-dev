@@ -2859,17 +2859,24 @@ $('newProjectBtn').onclick=function(){
 
 // ---- Scheduled board ----
 var AGL={general:'General Agent',personal:'Personal Agent',business:'Business Agent',pitch:'Pitch Agent',gmail:'Gmail Bot'};
+function scheduleSafeError(value){
+  var t=String(value||'').replace(/<!--[\s\S]*?-->/g,'').trim();
+  if(!t)return 'Please try again later.';
+  if(/supabase|render(?:\.com)?|cloudflare|github|postgres|postgrest|row[- ]level security|\brls\b|database|storage|backend|rpc|sql|stack|trace|policy|claim_token|scheduled_tasks|https?:\/\//i.test(t))return 'We could not complete this task just now. Please try again later or contact Pelex support.';
+  return t.slice(0,180);
+}
 function schedStatusLine(t){
   var st=t.last_status,when=t.last_run_at?new Date(t.last_run_at).toLocaleString([],{dateStyle:'medium',timeStyle:'short'}):'';
   if(t.run_state==='running')return 'Running now...';
-  if(t.retry_at&&st==='failed')return 'Last run failed ('+(t.last_error||'error')+'). Trying again '+new Date(t.retry_at).toLocaleString([],{dateStyle:'medium',timeStyle:'short'})+'.';
+  if(t.retry_at&&st==='failed')return 'The last run could not be completed. Trying again '+new Date(t.retry_at).toLocaleString([],{dateStyle:'medium',timeStyle:'short'})+'.';
   if(st==='delivered')return 'Delivered '+(t.delivered_at?new Date(t.delivered_at).toLocaleString([],{dateStyle:'medium',timeStyle:'short'}):when);
-  if(st==='delivery_failed')return 'The result is saved here, but sending it failed: '+(t.last_error||'delivery problem');
+  if(st==='delivery_failed')return 'The result is saved here, but delivery could not be completed: '+scheduleSafeError(t.last_error);
   if(st==='pending_approval')return 'Waiting for your approval. Nothing has been sent.';
   if(st==='skipped')return 'Skipped. It runs again at the next scheduled time.';
-  if(st==='failed')return 'The last run failed ('+(t.last_error||'error')+'). It will try again at the next scheduled time.';
+  if(st==='failed')return 'The last run could not be completed: '+scheduleSafeError(t.last_error);
   if(t.delivered_at)return 'Last sent '+new Date(t.delivered_at).toLocaleString([],{dateStyle:'medium',timeStyle:'short'});
-  return ''}
+  return '';
+}
 var FREQ={daily:'Every day',weekdays:'Weekdays',weekly:'Every week',every2days:'Every 2 days',every3days:'Every 3 days',biweekly:'Every 2 weeks',monthly:'Every month',once:'Once'};
 function sMsg(t,bad){var m=$('sMsg');m.textContent=t||'';m.style.color=bad?'#b3261e':''}
 function nextRunFrom(freq,time,day){
@@ -2904,10 +2911,10 @@ async function loadTasks(){
     meta.textContent=(AGL[t.agent||t.bot]||'General Agent')+' · '+when+' · '+(t.channel==='website'?'sent to this app':'sent to '+t.channel)+(t.active&&nx?' · next '+nx.toLocaleDateString([],{weekday:'short',day:'numeric',month:'short'}):' · paused');
     c.appendChild(meta);
     if(t.last_result){
-      var lr=document.createElement('div');lr.className='res';if(window.mdRender)lr.appendChild(window.mdRender(t.last_result.slice(0,6000)));else lr.textContent=t.last_result.slice(0,600);c.appendChild(lr);
+      var lr=document.createElement('div');lr.className='res';var visibleResult=String(t.last_result).replace(/<!--\\s*pelex-[\\s\\S]*?-->/gi,'').trim();if(window.mdRender)lr.appendChild(window.mdRender(visibleResult.slice(0,6000)));else lr.textContent=visibleResult.slice(0,600);c.appendChild(lr);
       }
     var sl=schedStatusLine(t);if(sl){var ld=document.createElement('div');ld.className='meta';ld.textContent=sl;c.appendChild(ld)}
-    var hr=(window.__runs||{})[t.id];if(hr&&hr.length){var dt=document.createElement('details');dt.className='actlog';var sm=document.createElement('summary');sm.textContent='History · '+hr.length+(hr.length===1?' run':' runs');dt.appendChild(sm);hr.slice(0,5).forEach(function(x){var rw=document.createElement('div');rw.textContent=new Date(x.started_at).toLocaleString([],{dateStyle:'short',timeStyle:'short'})+' · '+String(x.status).replace(/_/g,' ')+(x.error?' · '+x.error:'');dt.appendChild(rw)});c.appendChild(dt)}
+    var hr=(window.__runs||{})[t.id];if(hr&&hr.length){var dt=document.createElement('details');dt.className='actlog';var sm=document.createElement('summary');sm.textContent='History · '+hr.length+(hr.length===1?' run':' runs');dt.appendChild(sm);hr.slice(0,5).forEach(function(x){var rw=document.createElement('div');rw.textContent=new Date(x.started_at).toLocaleString([],{dateStyle:'short',timeStyle:'short'})+' · '+String(x.status).replace(/_/g,' ')+(x.error?' · '+scheduleSafeError(x.error):'');dt.appendChild(rw)});c.appendChild(dt)}
     var a=document.createElement('div');a.className='acts';
     var pb=document.createElement('button');pb.className='btn alt';pb.textContent=t.active?'Pause':'Resume';
     pb.onclick=async function(){pb.disabled=true;await sb.from('scheduled_tasks').update({active:!t.active}).eq('id',t.id);loadTasks()};
