@@ -36,6 +36,7 @@ const http = require('http');
 const dns = require('dns').promises;
 const net = require('net');
 const crypto = require('crypto');
+const { classifyImageIntent, extractImageSearchQuery } = require('./image-intent');
 let COMMANDS = null;
 for (const candidate of ['./commands.js', './command.js']) {
   try { COMMANDS = require(candidate); break; }
@@ -1006,18 +1007,31 @@ async function runAgent({ sid, text, meta, onStep, images, privacy, clientHistor
     await saveTurn({ sid, userId: uid, agentId, userText: savedText + ` [${imgs.length} image${imgs.length > 1 ? 's' : ''} attached]`, answer: answerEdit });
     return { output: answerEdit, steps: ['Image editing unavailable'] };
   }
-  // Image generation is temporarily disabled across Pelex. Do not call the image tool.
-  const explicitImageRequest =
-    /^\/image(?:\s|$)/i.test(text) ||
-    /\b(?:generate|create|make|draw|design|produce|render)\b[\s\S]{0,120}\b(?:image|picture|photo|photograph|illustration|artwork|logo|poster|flyer|banner|cover\s*art|graphic)\b/i.test(text) ||
-    /\b(?:image|picture|photo|photograph|illustration|artwork|logo|poster|flyer|banner|cover\s*art|graphic)\b[\s\S]{0,100}\b(?:generate|create|make|draw|design|produce|render)\b/i.test(text);
-  if (explicitImageRequest && !imgs.length) {
-    const requested = text.replace(/^\/image\s*/i, '').trim();
-    const answer = requested
-      ? 'Image generation is temporarily unavailable in Pelex. I can still help you develop the visual concept and write a detailed prompt. You can paste that prompt into ChatGPT image generation or another image-creation tool.\n\n**Your image idea:** ' + requested
-      : 'Image generation is temporarily unavailable in Pelex. I can still help you develop a visual concept and prepare a detailed prompt for ChatGPT or another image-creation tool.';
+  // Route image-search requests before creation detection. Words such as
+  // "not create an image" must never be mistaken for a request to generate one.
+  const imageIntent = classifyImageIntent(text);
+  if (imageIntent === 'search' && !imgs.length) {
+    const query = extractImageSearchQuery(text);
+    let answer;
+    if (!query) {
+      answer = 'What subject or place would you like me to find real images of?';
+    } else if (!EXT.has('find_images')) {
+      answer = 'Online image search is not connected right now. Image creation is a separate feature and will not be used as a substitute.';
+    } else {
+      const result = await runTool('find_images', { query, kind: 'photo' }, run);
+      answer = String(result || 'I could not find suitable images for that search.');
+      for (const md of [...new Set(run.attachments)]) if (!answer.includes(md)) answer += '\\n\\n' + md;
+    }
     await saveTurn({ sid, userId: uid, agentId, userText: savedText, answer });
-    return { output: answer, steps: ['Image generation unavailable'] };
+    return { output: answer, steps: query ? ['Searching online for images of ' + clip(query, 70)] : ['Clarifying image search'] };
+  }
+  if (imageIntent === 'create' && !imgs.length) {
+    const requested = text.replace(/^\\/image\\s*/i, '').trim();
+    const answer = requested
+      ? 'Creating new images is currently unavailable in Pelex. Online image search is available separately if you want existing pictures from the web.'
+      : 'Creating new images is currently unavailable in Pelex. You can still ask me to find existing pictures online.';
+    await saveTurn({ sid, userId: uid, agentId, userText: savedText, answer });
+    return { output: answer, steps: ['Image creation unavailable'] };
   }
 
   for (let round = 0; round <= CFG.maxToolRounds; round++) {
