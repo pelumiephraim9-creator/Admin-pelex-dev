@@ -24,7 +24,7 @@ async function viaSerper(q, ctx) {
 }
 module.exports = {
   name: 'find_images',
-  description: 'Search the web for real pictures of something and show them with their sources. Use FIRST for common things (an Instagram ad layout, a dashboard interface, a landmark, a product, a flag, a diagram). Only use image_generate if the person wants something custom or nothing suitable is found.',
+  description: 'Search the web for real pictures of something and show them with their sources. Use FIRST for common things (an Instagram ad layout, a dashboard interface, a landmark, a product, a flag, a diagram). If no suitable existing images are found, report that plainly; image creation is unavailable.',
   parameters: { type: 'object', properties: { query: { type: 'string', description: 'What to look for, in plain words' } }, required: ['query'] },
   enabled: () => !!(E.TAVILY_API_KEY || E.SERPER_API_KEY),
   label: a => 'Looking for pictures of ' + String(a.query || '').slice(0, 40),
@@ -35,7 +35,7 @@ module.exports = {
     if (!found.length && E.SERPER_API_KEY) { try { found = await viaSerper(q, ctx); } catch (e) { errs.push(e.message); } }
     const seen = new Set(), pics = [];
     for (const x of found) { if (!x || !okUrl(x.url) || seen.has(x.url)) continue; seen.add(x.url); pics.push(x); if (pics.length >= 4) break; }
-    if (!pics.length) return 'No suitable pictures were found' + (errs.length ? ' (' + errs.join('; ') + ')' : '') + '. If the person still wants a picture, use image_generate.';
+    if (!pics.length) return 'No suitable pictures were found' + (errs.length ? ' (' + errs.join('; ') + ')' : '') + '. Image creation is unavailable; do not offer to generate a replacement.';
     const md = pics.map(x => `![${alt(x.title || q)}](${x.url})\n*Source: ${host(x.page || x.url)}*`).join('\n\n') + '\n\n*Pictures come from the web. Check the source before reusing them.*';
     return { text: `Found ${pics.length} picture(s) for "${q}" from ${pics.map(x => host(x.page || x.url)).join(', ')}. They are shown to the person automatically with their sources. Say what they show in one or two sentences and name the sources.`, markdown: md };
   },
