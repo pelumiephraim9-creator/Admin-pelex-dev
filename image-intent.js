@@ -31,7 +31,7 @@ function extractImageSearchQuery(input) {
   q = q.replace(/\b(?:image|images|picture|pictures|photo|photos|photograph|photographs|visual|visuals)\b/ig, ' ');
   q = q.replace(/\b(?:for\s+me|please|instead|not\s+create|do\s+not\s+create|don't\s+create|dont\s+create)\b/ig, ' ');
   q = q.replace(/[,:;.!?]+/g, ' ').replace(/\s+/g, ' ').trim();
-  q = q.replace(/^(?:of|for|about|showing|at)\\s+/i, '').trim();
+  q = q.replace(/^(?:of|for|about|showing|at)\s+/i, '').trim();
   return q.slice(0, 180);
 }
 
