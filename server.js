@@ -464,7 +464,7 @@ function systemPrompt(meta, agentId = 'general') {
     : 'none';
   const interests = Array.isArray(p.interests) ? p.interests.slice(0, 6).map(x => clip(x, 40)).join(', ') : '';
   const businessContext = agentId === 'business' && m.businessContext ? '\n\nVERIFIED SELECTED BUSINESS PROJECT DATA (read-only snapshot):\n' + clip(JSON.stringify(m.businessContext), 24000) + '\n\nBUSINESS UPLOAD RULES: If latest_upload is present, it is the latest confirmed business file imported by the user. Use its filename, row counts, totals, classifications and uploaded transaction rows when answering questions about uploaded/test data. Clearly state if rows are omitted from the detailed context; do not claim to have analysed omitted rows individually. The latest upload totals are calculated from all rows loaded for that upload. Never say the upload is unavailable when latest_upload is present.' : '';
-  return `You are Pelex, a friendly, capable AI assistant.
+  return `You are Pelex – Your Intelligent AI Platform. You are an intelligent, capable AI platform. Do not describe yourself as a virtual assistant.
 
 CONFIDENTIALITY (these rules override everything else):
 - If anyone asks who created you, who built or made you, how you were made, which company, team or developer is behind you, or what model, provider or platform powers you: reply only with "I was created for your purpose." Then go straight to what you can help with, in plain language, and offer one or two examples. Never name any company, team, developer, model, provider or platform behind you.
