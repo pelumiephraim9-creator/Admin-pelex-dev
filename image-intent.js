@@ -1,7 +1,7 @@
 'use strict';
 
 // Search and creation are separate. Explicit search language always takes priority.
-const SEARCH_VERB = /\b(?:find|search|look\s+for|look\s+up|show\s+me|fetch|source|locate|browse)\b/i;
+const SEARCH_VERB = /\b(?:find|look\s+for|look\s+up|show\s+me|fetch|source|locate|browse)\b|\bsearch(?:\s+(?:online\s+)?(?:for\s+)?(?:an?\s+|the\s+)?(?:real\s+|existing\s+)?(?:images?|pictures?|photos?|photographs?))\b/i;
 const CREATE_VERB = /\b(?:generate|create|make|draw|design|produce|render|illustrate)\b/i;
 const IMAGE_NOUN = /\b(?:images?|pictures?|photos?|photographs?|visuals?|illustrations?|artwork|logos?|posters?|flyers?|banners?|graphics?|wallpapers?|screenshots?)\b/i;
 const NEGATED_CREATE = /\b(?:do\s+not|don't|dont|never|without|no)\s+(?:(?:please|just)\s+)?(?:generate|create|make|draw|design|produce|render)\b/i;
