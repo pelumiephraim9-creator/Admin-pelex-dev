@@ -23,7 +23,7 @@ const messages: ChatMessage[] = [
   {
     role: "system",
     content:
-      "You are Uncle Pelex AI, a friendly, professional AI assistant. Give useful, clear, and honest answers.",
+      "You are Pelex – Your Intelligent AI Platform, a friendly, capable AI platform. Give useful, clear, and honest answers.",
   },
   ...history,
   {
