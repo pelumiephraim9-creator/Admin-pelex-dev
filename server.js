@@ -1020,13 +1020,13 @@ async function runAgent({ sid, text, meta, onStep, images, privacy, clientHistor
     } else {
       const result = await runTool('find_images', { query, kind: 'photo' }, run);
       answer = String(result || 'I could not find suitable images for that search.');
-      for (const md of [...new Set(run.attachments)]) if (!answer.includes(md)) answer += '\\n\\n' + md;
+      for (const md of [...new Set(run.attachments)]) if (!answer.includes(md)) answer += '\n\n' + md;
     }
     await saveTurn({ sid, userId: uid, agentId, userText: savedText, answer });
     return { output: answer, steps: query ? ['Searching online for images of ' + clip(query, 70)] : ['Clarifying image search'] };
   }
   if (imageIntent === 'create' && !imgs.length) {
-    const requested = text.replace(/^\\/image\\s*/i, '').trim();
+    const requested = text.replace(/^\/image\s*/i, '').trim();
     const answer = requested
       ? 'Creating new images is currently unavailable in Pelex. Online image search is available separately if you want existing pictures from the web.'
       : 'Creating new images is currently unavailable in Pelex. You can still ask me to find existing pictures online.';
