@@ -1,6 +1,6 @@
 # Pelex Backend
 
-**Official product identity:** Pelex – Your Intelligent AI Platform. This is the platform identity used by the frontend, backend runtime and all user-facing agent experiences. Do not describe the product as a virtual assistant or use retired product names.
+**Official product identity:** Pelex – Your Intelligent AI Platform. This identity must be used consistently by the frontend, backend runtime and every user-facing agent experience.
 
 Pelex is a multi-agent backend designed to grow through committed agent and tool modules. The active agent structure is **General, Business, Pitch and Mailbot**. There is no Personal Agent in the current product structure.
 
